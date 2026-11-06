@@ -1,0 +1,340 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 830" width="100%" height="100%" style="background:#0f172a; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;">
+  <defs>
+    <!-- Filtros de sombra y brillo -->
+    <filter id="shadow" x="-8%" y="-8%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="glow-blue" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+
+    <!-- Gradientes de Contenedores -->
+    <linearGradient id="header-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="50%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#ec4899"/>
+    </linearGradient>
+
+    <linearGradient id="card-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.95"/>
+    </linearGradient>
+
+    <linearGradient id="edge-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#581c87" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#1e1b4b" stop-opacity="0.5"/>
+    </linearGradient>
+
+    <linearGradient id="vpc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#0f172a" stop-opacity="0.8"/>
+    </linearGradient>
+
+    <!-- Marcadores de Flechas -->
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#c084fc"/>
+    </marker>
+    <marker id="arrow-orange" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#fb923c"/>
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#4ade80"/>
+    </marker>
+  </defs>
+
+  <!-- ================= ENCABEZADO ================= -->
+  <rect x="30" y="20" width="1140" height="70" rx="14" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
+  <rect x="30" y="20" width="8" height="70" rx="4" fill="url(#header-grad)"/>
+  
+  <text x="55" y="48" fill="#f8fafc" font-size="20" font-weight="700">DocuProcess Cloud — Arquitectura de Referencia en AWS</text>
+  <text x="55" y="72" fill="#94a3b8" font-size="13" font-weight="400">Ambiente: <tspan fill="#38bdf8" font-weight="600">AWS Academy Sandbox (Vocareum)</tspan> | Topología: <tspan fill="#e2e8f0">IaaS Desacoplada + Single-AZ RDS + CDN OAC + SSM Session Manager</tspan></text>
+  
+  <!-- Badge Vocareum Compliant -->
+  <rect x="975" y="38" width="175" height="32" rx="16" fill="#14532d" stroke="#22c55e" stroke-width="1"/>
+  <circle cx="992" cy="54" r="5" fill="#4ade80"/>
+  <text x="1005" y="58" fill="#dcfce7" font-size="11" font-weight="600">Sandbox Compliant 100%</text>
+
+  <!-- ================= USUARIO CLIENTE (INTERNET) ================= -->
+  <g transform="translate(480, 105)">
+    <rect x="0" y="0" width="240" height="48" rx="24" fill="#0284c7" stroke="#38bdf8" stroke-width="1.5" filter="url(#shadow)"/>
+    <circle cx="28" cy="24" r="14" fill="#0369a1"/>
+    <!-- Icono Usuario -->
+    <path d="M 28 17 A 4 4 0 1 0 28 25 A 4 4 0 1 0 28 17 Z M 21 31 C 21 28 24 27 28 27 C 32 27 35 28 35 31 Z" fill="#f8fafc"/>
+    <text x="52" y="24" fill="#ffffff" font-size="12" font-weight="700">CLIENTE / NAVEGADOR</text>
+    <text x="52" y="38" fill="#e0f2fe" font-size="10">Tráfico Externo (IP Pública)</text>
+  </g>
+
+  <!-- ================= CONTENEDOR EDGE LOCATION (IZQUIERDA) ================= -->
+  <rect x="30" y="175" width="270" height="625" rx="14" fill="url(#edge-grad)" stroke="#6b21a8" stroke-width="1.5" stroke-dasharray="6,4" filter="url(#shadow)"/>
+  <rect x="42" y="185" width="140" height="24" rx="6" fill="#6b21a8"/>
+  <text x="50" y="201" fill="#f3e8ff" font-size="11" font-weight="700">AWS EDGE LOCATION</text>
+
+  <!-- Amazon CloudFront -->
+  <g transform="translate(45, 230)">
+    <rect x="0" y="0" width="240" height="150" rx="12" fill="url(#card-grad)" stroke="#a855f7" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="12" y="12" width="36" height="36" rx="8" fill="#6b21a8"/>
+    <!-- Icono CloudFront -->
+    <path d="M 20 30 L 30 20 L 40 30 L 30 40 Z" fill="none" stroke="#e9d5ff" stroke-width="2"/>
+    <circle cx="30" cy="30" r="3" fill="#e9d5ff"/>
+    <text x="58" y="28" fill="#f8fafc" font-size="14" font-weight="700">Amazon CloudFront</text>
+    <text x="58" y="44" fill="#c084fc" font-size="11">CDN Global &amp; Aceleración</text>
+
+    <line x1="12" y1="58" x2="228" y2="58" stroke="#334155" stroke-width="1"/>
+    
+    <text x="14" y="78" fill="#cbd5e1" font-size="11">• Dominio: <tspan fill="#38bdf8">*.cloudfront.net</tspan></text>
+    <text x="14" y="96" fill="#cbd5e1" font-size="11">• Terminación SSL/TLS HTTPS</text>
+    <text x="14" y="114" fill="#cbd5e1" font-size="11">• SPA Routing (403/404 -> /200)</text>
+    <text x="14" y="132" fill="#a855f7" font-weight="600" font-size="11">• Origin Access Control (OAC)</text>
+  </g>
+
+  <!-- Conector CloudFront -> S3 Frontend OAC -->
+  <path d="M 165 380 L 165 440" fill="none" stroke="#c084fc" stroke-width="2.5" stroke-dasharray="4,3" marker-end="url(#arrow-purple)"/>
+  <rect x="110" y="400" width="110" height="20" rx="4" fill="#3b0764" stroke="#a855f7" stroke-width="1"/>
+  <text x="118" y="414" fill="#f3e8ff" font-size="9" font-weight="600">OAC SigV4 Auth</text>
+
+  <!-- Amazon S3 Frontend -->
+  <g transform="translate(45, 450)">
+    <rect x="0" y="0" width="240" height="150" rx="12" fill="url(#card-grad)" stroke="#22c55e" stroke-width="1.5" filter="url(#shadow)"/>
+    <rect x="12" y="12" width="36" height="36" rx="8" fill="#14532d"/>
+    <!-- Icono S3 -->
+    <path d="M 20 22 L 40 22 L 36 38 L 24 38 Z" fill="#4ade80"/>
+    <text x="58" y="28" fill="#f8fafc" font-size="14" font-weight="700">Amazon S3 (Frontend)</text>
+    <text x="58" y="44" fill="#4ade80" font-size="11">Bucket: docuprocess-frontend-*</text>
+
+    <line x1="12" y1="58" x2="228" y2="58" stroke="#334155" stroke-width="1"/>
+    
+    <text x="14" y="78" fill="#cbd5e1" font-size="11">• Alojamiento Estático (SPA)</text>
+    <text x="14" y="96" fill="#cbd5e1" font-size="11">• Glassmorphism UI (Tailwind)</text>
+    <text x="14" y="114" fill="#cbd5e1" font-size="11">• Block Public Access: <tspan fill="#4ade80">ENABLED</tspan></text>
+    <text x="14" y="132" fill="#cbd5e1" font-size="11">• Acceso exclusivo vía OAC</text>
+  </g>
+
+  <!-- Features UI/UX Box -->
+  <g transform="translate(45, 620)">
+    <rect x="0" y="0" width="240" height="160" rx="10" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="12" y="22" fill="#93c5fd" font-size="11" font-weight="700">DISEÑO UI/UX PRO MAX</text>
+    <text x="12" y="42" fill="#94a3b8" font-size="10">• Estilo: <tspan fill="#e2e8f0">Soft Glassmorphism</tspan></text>
+    <text x="12" y="60" fill="#94a3b8" font-size="10">• Primario: <tspan fill="#3b82f6">#2563EB</tspan> | Acento: <tspan fill="#f97316">#EA580C</tspan></text>
+    <text x="12" y="78" fill="#94a3b8" font-size="10">• Tipografía: <tspan fill="#e2e8f0">Plus Jakarta Sans</tspan></text>
+    <text x="12" y="96" fill="#94a3b8" font-size="10">• Contrastes WCAG AAA &gt; 7:1</text>
+    <text x="12" y="114" fill="#94a3b8" font-size="10">• Subida Drag &amp; Drop reactiva</text>
+    <text x="12" y="132" fill="#94a3b8" font-size="10">• Polling de estado automático</text>
+  </g>
+
+  <!-- ================= CONTENEDOR VPC (DERECHA) ================= -->
+  <rect x="325" y="175" width="845" height="425" rx="14" fill="url(#vpc-grad)" stroke="#f97316" stroke-width="1.5" filter="url(#shadow)"/>
+  
+  <!-- VPC Header Badge -->
+  <rect x="340" y="185" width="210" height="24" rx="6" fill="#c2410c"/>
+  <text x="348" y="201" fill="#ffedd5" font-size="11" font-weight="700">VPC: 10.0.0.0/16 (us-east-1)</text>
+
+  <!-- Internet Gateway -->
+  <g transform="translate(565, 185)">
+    <rect x="0" y="0" width="160" height="24" rx="6" fill="#1e293b" stroke="#f97316" stroke-width="1"/>
+    <circle cx="12" cy="12" r="5" fill="#f97316"/>
+    <text x="24" y="16" fill="#f8fafc" font-size="10" font-weight="600">Internet Gateway (IGW)</text>
+  </g>
+
+  <!-- ================= TIER PÚBLICO ================= -->
+  <rect x="340" y="220" width="815" height="100" rx="10" fill="#1e293b" stroke="#0284c7" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <rect x="350" y="228" width="220" height="18" rx="4" fill="#0369a1"/>
+  <text x="356" y="241" fill="#e0f2fe" font-size="10" font-weight="700">TIER PÚBLICO (10.0.10.0/24 &amp; 10.0.11.0/24)</text>
+
+  <!-- Application Load Balancer -->
+  <g transform="translate(355, 252)">
+    <rect x="0" y="0" width="370" height="58" rx="8" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2"/>
+    <rect x="8" y="8" width="42" height="42" rx="6" fill="#0369a1"/>
+    <!-- Icono ALB -->
+    <path d="M 16 36 L 29 20 L 42 36 Z" fill="none" stroke="#e0f2fe" stroke-width="2"/>
+    <text x="60" y="24" fill="#f8fafc" font-size="12" font-weight="700">Application Load Balancer (ALB)</text>
+    <text x="60" y="40" fill="#94a3b8" font-size="10">Listener HTTP :80 | FQDN: <tspan fill="#38bdf8">*.elb.amazonaws.com</tspan></text>
+    <text x="60" y="52" fill="#38bdf8" font-size="9" font-weight="600">Target Group Health Check: /health (HTTP 200)</text>
+  </g>
+
+  <!-- NAT Gateway -->
+  <g transform="translate(745, 252)">
+    <rect x="0" y="0" width="395" height="58" rx="8" fill="#0f172a" stroke="#f59e0b" stroke-width="1.2"/>
+    <rect x="8" y="8" width="42" height="42" rx="6" fill="#b45309"/>
+    <!-- Icono NAT -->
+    <circle cx="29" cy="29" r="12" fill="none" stroke="#fef3c7" stroke-width="2"/>
+    <path d="M 23 29 L 35 29 M 31 25 L 35 29 L 31 33" stroke="#fef3c7" stroke-width="2" fill="none"/>
+    <text x="58" y="24" fill="#f8fafc" font-size="12" font-weight="700">NAT Gateway + Elastic IP</text>
+    <text x="58" y="40" fill="#cbd5e1" font-size="10">Subred Pública 1 (1 EIP permitido Vocareum)</text>
+    <text x="58" y="52" fill="#fbbf24" font-size="9" font-weight="600">Salida segura para EC2 hacia SSM, SNS y dnf/pip</text>
+  </g>
+
+  <!-- ================= TIER PRIVADO: CÓMPUTO ================= -->
+  <rect x="340" y="330" width="470" height="205" rx="10" fill="#1e293b" stroke="#eab308" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <rect x="350" y="338" width="280" height="18" rx="4" fill="#a16207"/>
+  <text x="356" y="351" fill="#fef08a" font-size="10" font-weight="700">SUBREDES PRIVADAS CÓMPUTO (10.0.1.0/24 &amp; 10.0.2.0/24)</text>
+
+  <!-- Auto Scaling Group Container -->
+  <g transform="translate(355, 362)">
+    <rect x="0" y="0" width="440" height="162" rx="8" fill="#0f172a" stroke="#ca8a04" stroke-width="1.2"/>
+    <text x="12" y="20" fill="#fef08a" font-size="11" font-weight="700">Auto Scaling Group (EC2 t3.micro | Min: 2, Desired: 2, Max: 4)</text>
+    
+    <!-- Nodo EC2 1 -->
+    <rect x="12" y="30" width="200" height="120" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <rect x="20" y="38" width="26" height="26" rx="4" fill="#ca8a04"/>
+    <text x="24" y="55" fill="#fef9c3" font-size="10" font-weight="800">EC2</text>
+    <text x="52" y="48" fill="#f8fafc" font-size="11" font-weight="700">Instancia A (AZ 1a)</text>
+    <text x="52" y="60" fill="#a3e635" font-size="9">● healthy (InService)</text>
+    <line x1="20" y1="70" x2="202" y2="70" stroke="#334155" stroke-width="1"/>
+    <text x="20" y="84" fill="#94a3b8" font-size="9">Role: <tspan fill="#e2e8f0">AmazonSSMRoleFor...</tspan></text>
+    <text x="20" y="98" fill="#38bdf8" font-size="9">API REST: Gunicorn :80</text>
+    <text x="20" y="112" fill="#fb923c" font-size="9">Worker: python worker.py</text>
+    <text x="20" y="126" fill="#e2e8f0" font-size="9">Port 22 SSH: <tspan fill="#ef4444" font-weight="700">BLOCKED</tspan></text>
+    <text x="20" y="140" fill="#4ade80" font-size="9">SSM Session Mgr: <tspan fill="#4ade80">READY</tspan></text>
+
+    <!-- Nodo EC2 2 -->
+    <rect x="225" y="30" width="200" height="120" rx="6" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <rect x="233" y="38" width="26" height="26" rx="4" fill="#ca8a04"/>
+    <text x="237" y="55" fill="#fef9c3" font-size="10" font-weight="800">EC2</text>
+    <text x="265" y="48" fill="#f8fafc" font-size="11" font-weight="700">Instancia B (AZ 1b)</text>
+    <text x="265" y="60" fill="#a3e635" font-size="9">● healthy (InService)</text>
+    <line x1="233" y1="70" x2="415" y2="70" stroke="#334155" stroke-width="1"/>
+    <text x="233" y="84" fill="#94a3b8" font-size="9">Role: <tspan fill="#e2e8f0">AmazonSSMRoleFor...</tspan></text>
+    <text x="233" y="98" fill="#38bdf8" font-size="9">API REST: Gunicorn :80</text>
+    <text x="233" y="112" fill="#fb923c" font-size="9">Worker: python worker.py</text>
+    <text x="233" y="126" fill="#e2e8f0" font-size="9">Port 22 SSH: <tspan fill="#ef4444" font-weight="700">BLOCKED</tspan></text>
+    <text x="233" y="140" fill="#4ade80" font-size="9">SSM Session Mgr: <tspan fill="#4ade80">READY</tspan></text>
+  </g>
+
+  <!-- ================= TIER PRIVADO: BASE DE DATOS ================= -->
+  <rect x="825" y="330" width="330" height="205" rx="10" fill="#1e293b" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,3"/>
+  <rect x="835" y="338" width="250" height="18" rx="4" fill="#065f46"/>
+  <text x="841" y="351" fill="#a7f3d0" font-size="10" font-weight="700">SUBREDES PRIVADAS DB (10.0.20.0/24 &amp; 10.0.21.0/24)</text>
+
+  <!-- Amazon RDS MySQL -->
+  <g transform="translate(840, 362)">
+    <rect x="0" y="0" width="300" height="162" rx="8" fill="#0f172a" stroke="#059669" stroke-width="1.2"/>
+    <rect x="12" y="12" width="38" height="38" rx="6" fill="#065f46"/>
+    <!-- Icono DB -->
+    <ellipse cx="31" cy="23" rx="12" ry="4" fill="#34d399"/>
+    <path d="M 19 23 L 19 36 C 19 39 43 39 43 36 L 43 23 Z" fill="#059669"/>
+    <text x="58" y="28" fill="#f8fafc" font-size="13" font-weight="700">Amazon RDS MySQL 8.0</text>
+    <text x="58" y="44" fill="#34d399" font-size="10">Clase: db.t3.micro | gp2 20GB</text>
+
+    <line x1="12" y1="58" x2="288" y2="58" stroke="#334155" stroke-width="1"/>
+    
+    <text x="14" y="78" fill="#f87171" font-size="11" font-weight="700">RESTRICCIÓN SANDBOX:</text>
+    <text x="14" y="96" fill="#cbd5e1" font-size="11">• Despliegue: <tspan fill="#38bdf8" font-weight="600">Single-AZ estricto</tspan></text>
+    <text x="14" y="114" fill="#cbd5e1" font-size="11">• Multi-AZ: <tspan fill="#ef4444" font-weight="600">false (Sin Standby)</tspan></text>
+    <text x="14" y="132" fill="#cbd5e1" font-size="11">• Puerto: <tspan fill="#34d399">3306 (Solo SG EC2)</tspan></text>
+    <text x="14" y="150" fill="#cbd5e1" font-size="11">• skip_final_snapshot = true</text>
+  </g>
+
+  <!-- ================= BARRA DE ENDPOINTS DE VPC ================= -->
+  <g transform="translate(340, 545)">
+    <rect x="0" y="0" width="815" height="45" rx="8" fill="#0f172a" stroke="#64748b" stroke-width="1"/>
+    <text x="15" y="27" fill="#94a3b8" font-size="11" font-weight="700">VPC GATEWAY ENDPOINTS (Tráfico Interno Gratuito AWS Backbone):</text>
+    
+    <rect x="440" y="10" width="165" height="25" rx="5" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+    <text x="450" y="26" fill="#38bdf8" font-size="10" font-weight="600">Endpoint Gateway S3</text>
+
+    <rect x="625" y="10" width="205" height="25" rx="5" fill="#1e293b" stroke="#38bdf8" stroke-width="1"/>
+    <text x="635" y="26" fill="#38bdf8" font-size="10" font-weight="600">Endpoint Gateway DynamoDB</text>
+  </g>
+
+  <!-- ================= SERVICIOS PAAS Y SERVERLESS (INFERIOR) ================= -->
+  <!-- S3 Documents -->
+  <g transform="translate(325, 620)">
+    <rect x="0" y="0" width="195" height="180" rx="10" fill="url(#card-grad)" stroke="#22c55e" stroke-width="1.3" filter="url(#shadow)"/>
+    <rect x="10" y="10" width="30" height="30" rx="6" fill="#14532d"/>
+    <path d="M 16 18 L 34 18 L 30 32 L 20 32 Z" fill="#4ade80"/>
+    <text x="48" y="24" fill="#f8fafc" font-size="12" font-weight="700">Amazon S3 Docs</text>
+    <text x="48" y="37" fill="#4ade80" font-size="9">docuprocess-documents-*</text>
+    <line x1="10" y1="46" x2="185" y2="46" stroke="#334155" stroke-width="1"/>
+    <text x="10" y="66" fill="#cbd5e1" font-size="10">• Documentos &amp; Fotos</text>
+    <text x="10" y="84" fill="#cbd5e1" font-size="10">• Versioning: Enabled</text>
+    <text x="10" y="102" fill="#cbd5e1" font-size="10">• Cifrado: AES-256 SSE</text>
+    <text x="10" y="120" fill="#cbd5e1" font-size="10">• Block Public Access</text>
+    <text x="10" y="138" fill="#cbd5e1" font-size="10">• Ingesta directa cliente</text>
+    <text x="10" y="156" fill="#cbd5e1" font-size="10">• Lectura por Worker</text>
+  </g>
+
+  <!-- Amazon DynamoDB -->
+  <g transform="translate(535, 620)">
+    <rect x="0" y="0" width="205" height="180" rx="10" fill="url(#card-grad)" stroke="#3b82f6" stroke-width="1.3" filter="url(#shadow)"/>
+    <rect x="10" y="10" width="30" height="30" rx="6" fill="#1e3a8a"/>
+    <circle cx="25" cy="25" r="9" fill="none" stroke="#60a5fa" stroke-width="2"/>
+    <text x="48" y="24" fill="#f8fafc" font-size="12" font-weight="700">Amazon DynamoDB</text>
+    <text x="48" y="37" fill="#60a5fa" font-size="9">docuprocess-metadata</text>
+    <line x1="10" y1="46" x2="195" y2="46" stroke="#334155" stroke-width="1"/>
+    <text x="10" y="66" fill="#cbd5e1" font-size="10">• NoSQL Pay-Per-Request</text>
+    <text x="10" y="84" fill="#cbd5e1" font-size="10">• PK: <tspan fill="#60a5fa">document_id (S)</tspan></text>
+    <text x="10" y="102" fill="#cbd5e1" font-size="10">• GSI: <tspan fill="#e2e8f0">UserDocumentsIndex</tspan></text>
+    <text x="10" y="120" fill="#cbd5e1" font-size="10">• Historial de Ingesta</text>
+    <text x="10" y="138" fill="#cbd5e1" font-size="10">• Estado: QUEUED/DONE</text>
+    <text x="10" y="156" fill="#cbd5e1" font-size="10">• PITR &amp; Cifrado SSE</text>
+  </g>
+
+  <!-- Amazon SNS -->
+  <g transform="translate(755, 620)">
+    <rect x="0" y="0" width="195" height="180" rx="10" fill="url(#card-grad)" stroke="#f97316" stroke-width="1.3" filter="url(#shadow)"/>
+    <rect x="10" y="10" width="30" height="30" rx="6" fill="#7c2d12"/>
+    <path d="M 18 20 L 32 20 L 32 29 L 25 33 L 18 29 Z" fill="#fb923c"/>
+    <text x="48" y="24" fill="#f8fafc" font-size="12" font-weight="700">Amazon SNS</text>
+    <text x="48" y="37" fill="#fb923c" font-size="9">docuprocess-alerts</text>
+    <line x1="10" y1="46" x2="185" y2="46" stroke="#334155" stroke-width="1"/>
+    <text x="10" y="66" fill="#cbd5e1" font-size="10">• Tópico Pub/Sub</text>
+    <text x="10" y="84" fill="#cbd5e1" font-size="10">• Alertas por Email</text>
+    <text x="10" y="102" fill="#cbd5e1" font-size="10">• Notif. Worker (OCR)</text>
+    <text x="10" y="120" fill="#cbd5e1" font-size="10">• Destino CloudWatch</text>
+    <text x="10" y="138" fill="#cbd5e1" font-size="10">• admin-docuprocess@...</text>
+    <text x="10" y="156" fill="#cbd5e1" font-size="10">• Alerta CPU y Storage</text>
+  </g>
+
+  <!-- CloudWatch & CloudTrail -->
+  <g transform="translate(965, 620)">
+    <rect x="0" y="0" width="205" height="180" rx="10" fill="url(#card-grad)" stroke="#ef4444" stroke-width="1.3" filter="url(#shadow)"/>
+    <rect x="10" y="10" width="30" height="30" rx="6" fill="#7f1d1d"/>
+    <path d="M 18 31 L 23 23 L 28 27 L 33 18" stroke="#f87171" stroke-width="2" fill="none"/>
+    <text x="48" y="24" fill="#f8fafc" font-size="12" font-weight="700">Monitoreo &amp; Logs</text>
+    <text x="48" y="37" fill="#f87171" font-size="9">CloudWatch + CloudTrail</text>
+    <line x1="10" y1="46" x2="195" y2="46" stroke="#334155" stroke-width="1"/>
+    <text x="10" y="66" fill="#cbd5e1" font-size="10">• Alarma CPU EC2 &gt; 75%</text>
+    <text x="10" y="84" fill="#cbd5e1" font-size="10">• Scale-Out ASG (+1)</text>
+    <text x="10" y="102" fill="#cbd5e1" font-size="10">• Alarma CPU RDS &gt; 80%</text>
+    <text x="10" y="120" fill="#cbd5e1" font-size="10">• Alarma Disco RDS &lt; 5GB</text>
+    <text x="10" y="138" fill="#cbd5e1" font-size="10">• CloudTrail Audit Trail</text>
+    <text x="10" y="156" fill="#cbd5e1" font-size="10">• S3 Bucket Logs Dedicado</text>
+  </g>
+
+  <!-- ================= RUTAS Y LÍNEAS DE FLUJO PRINCIPALES ================= -->
+  <!-- Flujo 1: Usuario -> CloudFront -->
+  <path d="M 480 128 L 165 128 L 165 220" fill="none" stroke="#c084fc" stroke-width="2.5" marker-end="url(#arrow-purple)"/>
+  <rect x="220" y="115" width="180" height="22" rx="4" fill="#3b0764" stroke="#a855f7" stroke-width="1"/>
+  <text x="228" y="130" fill="#f3e8ff" font-size="10" font-weight="600">[FLUJO 1] CARGA WEB HTTPS</text>
+
+  <!-- Flujo 2: Usuario -> ALB (vía IGW) -->
+  <path d="M 600 153 L 600 185 M 600 209 L 600 242" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <rect x="615" y="155" width="165" height="22" rx="4" fill="#0c4a6e" stroke="#0284c7" stroke-width="1"/>
+  <text x="623" y="170" fill="#e0f2fe" font-size="10" font-weight="600">[FLUJO 2] API REST HTTP</text>
+
+  <!-- ALB -> Auto Scaling Group -->
+  <path d="M 540 310 L 540 352" fill="none" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+
+  <!-- EC2 -> RDS MySQL (TCP 3306) -->
+  <path d="M 795 440 L 830 440" fill="none" stroke="#10b981" stroke-width="2.5" marker-end="url(#arrow-green)"/>
+  <rect x="785" y="420" width="60" height="18" rx="4" fill="#064e3b" stroke="#10b981" stroke-width="1"/>
+  <text x="790" y="432" fill="#a7f3d0" font-size="9" font-weight="700">TCP 3306</text>
+
+  <!-- EC2 -> S3 / DynamoDB (inferior) -->
+  <path d="M 460 524 L 460 610" fill="none" stroke="#22c55e" stroke-width="2" marker-end="url(#arrow-green)"/>
+  <path d="M 640 524 L 640 610" fill="none" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+
+  <!-- Worker -> SNS -->
+  <path d="M 720 524 L 720 590 L 850 590 L 850 610" fill="none" stroke="#f97316" stroke-width="2" marker-end="url(#arrow-orange)"/>
+
+  <!-- CloudWatch Alarma -> SNS -->
+  <path d="M 965 680 L 950 680" fill="none" stroke="#ef4444" stroke-width="2" marker-end="url(#arrow-orange)"/>
+
+  <!-- CloudWatch -> ASG Scale Up -->
+  <path d="M 1070 620 L 1070 575 L 750 575 L 750 535" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="4,3"/>
+
+</svg>

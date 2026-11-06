@@ -18,7 +18,14 @@ Infraestructura como Código (IaC) en Amazon Web Services (AWS) mediante HashiCo
 
 ## 2. Diagrama de Arquitectura de Referencia
 
-La arquitectura implementa separación de preocupaciones (*Clean Architecture*) y aislamiento estricto de capas de red en el modelo OSI (Capas 2, 3, 4 y 7):
+La arquitectura implementa separación de preocupaciones (*Clean Architecture*) y aislamiento estricto de capas de red en el modelo OSI (Capas 2, 3, 4 y 7).
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="Diagrama de Arquitectura DocuProcess Cloud" width="100%">
+</p>
+
+<details>
+<summary><b>Ver Definición en Código de Arquitectura (Mermaid.js)</b></summary>
 
 ```mermaid
 graph TD
@@ -73,6 +80,7 @@ graph TD
     CW -->|Acción de Alarma / Notificación| SNS
     CW -->|Acción de Escalado| ASG
 ```
+</details>
 
 ---
 
@@ -119,11 +127,11 @@ Para ejecutar la infraestructura desde la consola o terminal del laboratorio:
 
 ## 5. Instrucciones Exactas de Despliegue Automatizado
 
-El despliegue se encuentra 100% automatizado y centralizado en el archivo [`main.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/main.tf).
+El despliegue se encuentra 100% automatizado y centralizado en el archivo [`main.tf`](file:///home/DocuProcess-Cloud-SaaS/main.tf).
 
 ### Paso 1: Clonar / Navegar al Repositorio
 ```bash
-cd /home/robledo/DocuProcess-Cloud-SaaS
+cd /home/DocuProcess-Cloud-SaaS
 ```
 
 ### Paso 2: Inicialización de Providers en Terraform
@@ -132,7 +140,7 @@ terraform init
 ```
 *(Si opera en un entorno offline con caché local de plugins):*
 ```bash
-terraform init -plugin-dir=/home/robledo/proyectos/cloud-iac/agrocloud-monitor-aws/.terraform/providers
+terraform init -plugin-dir=/home/proyectos/cloud-iac/agrocloud-monitor-aws/.terraform/providers
 ```
 
 ### Paso 3: Validación Sintáctica y Estructural
