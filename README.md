@@ -125,9 +125,32 @@ Para ejecutar la infraestructura desde la consola o terminal del laboratorio:
 
 ---
 
-## 5. Instrucciones Exactas de Despliegue Automatizado
+## 5. Estructura Modular del Proyecto (Clean Architecture IaC)
 
-El despliegue se encuentra 100% automatizado y centralizado en el archivo [`main.tf`](file:///home/DocuProcess-Cloud-SaaS/main.tf).
+La infraestructura como código está organizada modularmente siguiendo el principio de **Separación de Responsabilidades (Separation of Concerns)**, desacoplando cada dominio técnico en archivos temáticos sin introducir la sobrecarga ni el riesgo de reasignación de estados de los submódulos:
+
+```
+DocuProcess-Cloud-SaaS/
+├── providers.tf         # Declaración de providers AWS y Random, data sources (AZs, AMI AL2023)
+├── variables.tf         # Variables de entrada tipadas (región, CIDRs, credenciales, email)
+├── locals.tf            # Nombres comunes, prefijos deterministas e identificador de rol SSM
+├── network.tf           # VPC 10.0.0.0/16, 6 subredes, IGW, NAT GW, EIP, Tablas de Enrutamiento y VPC Endpoints
+├── storage_cdn.tf       # Buckets S3 (Frontend, Docs, Logs), OAC y Distribución CloudFront (Reverse Proxy API)
+├── database.tf          # Amazon RDS MySQL 8.0 (Single-AZ) y Amazon DynamoDB (docuprocess-metadata)
+├── compute.tf           # Security Groups (ALB, EC2, RDS), ALB, Target Group, Launch Template y ASG
+├── monitoring.tf        # Topic Amazon SNS, suscripción por correo, alarmas CloudWatch y políticas ASG
+├── outputs.tf           # Endpoints públicos (ALB DNS, CloudFront CDN, RDS MySQL, S3, SNS ARN)
+├── frontend/
+│   └── index.html       # Single Page Application (SPA) interactiva con Tailwind CSS y polling
+├── architecture.svg     # Diagrama vectorial SVG de alta resolución
+└── README.md            # Documentación completa y manual de operación
+```
+
+---
+
+## 6. Instrucciones Exactas de Despliegue Automatizado
+
+El despliegue se encuentra 100% automatizado y orquestado mediante la plantilla modular de Terraform.
 
 ### Paso 1: Clonar / Navegar al Repositorio
 ```bash
