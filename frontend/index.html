@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocuProcess Cloud — SaaS Enterprise Document Processing</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    code, pre, .font-mono { font-family: 'JetBrains Mono', monospace; }
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-card {
+      background: rgba(30, 41, 59, 0.5);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .animate-pulse-subtle { animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-600 selection:text-white">
+
+  <!-- Top Global Bar -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <!-- Logo & Brand -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-cyan-400 flex items-center justify-center font-extrabold text-xl shadow-lg shadow-indigo-500/20 text-white">
+          D
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-lg tracking-tight text-white">DocuProcess</span>
+            <span class="text-indigo-400 text-xs px-2 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 font-semibold">Cloud SaaS</span>
+          </div>
+          <span class="text-[10px] text-slate-400 font-mono hidden sm:inline-block">Infraestructura III — Universidad ICESI</span>
+        </div>
+      </div>
+
+      <!-- Live Connectivity & Active User -->
+      <div class="flex items-center gap-3">
+        <!-- API Status Pill -->
+        <div id="api-status-pill" class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800 text-xs font-medium">
+          <span id="api-status-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+          <span id="api-status-text" class="text-slate-300">Conectando API...</span>
+        </div>
+
+        <!-- User Session Badge -->
+        <div id="user-badge-container" class="flex items-center gap-2 pl-2 border-l border-slate-800">
+          <div class="w-8 h-8 rounded-full bg-indigo-600/30 border border-indigo-500/40 flex items-center justify-center text-indigo-300 font-bold text-xs uppercase" id="user-avatar">
+            A
+          </div>
+          <div class="hidden md:block text-left">
+            <div class="text-xs font-bold text-white flex items-center gap-1.5" id="user-name-display">
+              admin
+              <span class="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300 font-mono uppercase" id="user-role-badge">ADMIN</span>
+            </div>
+            <div class="text-[10px] text-slate-400" id="user-email-display">azgomez2015@gmail.com</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+
+    <!-- KPI / Metrics Grid -->
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div class="glass-card rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+        <span class="text-xs text-slate-400 font-medium">Total Documentos</span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="kpi-total" class="text-2xl font-extrabold text-white">0</span>
+          <span class="text-[10px] text-slate-500 font-mono">S3 + RDS</span>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+        <span class="text-xs text-amber-400 font-medium flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> En Cola (Queued)
+        </span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="kpi-queued" class="text-2xl font-extrabold text-amber-400">0</span>
+          <span class="text-[10px] text-amber-500/70 font-mono">Pendientes</span>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+        <span class="text-xs text-blue-400 font-medium flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span> Procesando
+        </span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="kpi-processing" class="text-2xl font-extrabold text-blue-400">0</span>
+          <span class="text-[10px] text-blue-500/70 font-mono">Worker EC2</span>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-xl p-4 border-slate-800 flex flex-col justify-between">
+        <span class="text-xs text-emerald-400 font-medium flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Completados
+        </span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="kpi-completed" class="text-2xl font-extrabold text-emerald-400">0</span>
+          <span class="text-[10px] text-emerald-500/70 font-mono">OCR OK</span>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-xl p-4 border-slate-800 flex flex-col justify-between col-span-2 md:col-span-1">
+        <span class="text-xs text-purple-400 font-medium flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span> Usuarios RDS
+        </span>
+        <div class="flex items-baseline gap-2 mt-2">
+          <span id="kpi-users" class="text-2xl font-extrabold text-purple-400">0</span>
+          <span class="text-[10px] text-purple-500/70 font-mono">MySQL 8.0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="flex items-center gap-2 border-b border-slate-800 pb-2 overflow-x-auto text-sm">
+      <button onclick="switchTab('upload')" id="tab-btn-upload" class="px-4 py-2 rounded-lg font-semibold text-white bg-indigo-600 shadow-md shadow-indigo-600/20 transition flex items-center gap-2 whitespace-nowrap">
+        <span>📤</span> Subir Documento (S3)
+      </button>
+      <button onclick="switchTab('history')" id="tab-btn-history" class="px-4 py-2 rounded-lg font-semibold text-slate-400 hover:text-white hover:bg-slate-900 transition flex items-center gap-2 whitespace-nowrap">
+        <span>📋</span> Historial & Cola Worker
+      </button>
+      <button onclick="switchTab('users')" id="tab-btn-users" class="px-4 py-2 rounded-lg font-semibold text-slate-400 hover:text-white hover:bg-slate-900 transition flex items-center gap-2 whitespace-nowrap">
+        <span>👥</span> Usuarios & Roles (RDS)
+      </button>
+      <button onclick="switchTab('infra')" id="tab-btn-infra" class="px-4 py-2 rounded-lg font-semibold text-slate-400 hover:text-white hover:bg-slate-900 transition flex items-center gap-2 whitespace-nowrap">
+        <span>☁️</span> Infraestructura & Diagnóstico
+      </button>
+    </div>
+
+    <!-- TAB 1: SUBIR DOCUMENTO (S3 + DYNAMODB + ASG) -->
+    <section id="tab-upload" class="space-y-6">
+      <div class="glass-panel rounded-2xl p-6 sm:p-8 space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <span>📄</span> Ingesta de Documentos y Encolado Asíncrono
+          </h2>
+          <p class="text-sm text-slate-400 mt-1">
+            Los archivos son transferidos a Amazon S3, registrados en DynamoDB y MySQL, y procesados en segundo plano por el módulo Worker en EC2. Al finalizar, se emite una notificación vía Amazon SNS hacia <strong class="text-indigo-300 font-mono">azgomez2015@gmail.com</strong>.
+          </p>
+        </div>
+
+        <!-- Formulario de Carga -->
+        <form id="upload-form" onsubmit="handleUpload(event)" class="space-y-6">
+          <!-- Drop Area -->
+          <div id="drop-zone" class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-xl p-8 text-center cursor-pointer transition bg-slate-900/40 hover:bg-slate-900/80 group">
+            <input type="file" id="file-input" class="hidden" onchange="handleFileSelect(event)" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.txt">
+            <div class="space-y-3">
+              <div class="w-12 h-12 mx-auto rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center text-2xl group-hover:scale-110 transition">
+                📥
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-white">Haz clic para seleccionar un archivo o arrástralo aquí</p>
+                <p class="text-xs text-slate-400 mt-1">Soporta PDF, PNG, JPG, DOCX y TXT (Máximo 10 MB)</p>
+              </div>
+              <div id="selected-file-info" class="hidden inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-indigo-950 border border-indigo-800 text-indigo-300 text-xs font-mono">
+                <span id="selected-filename">documento.pdf</span>
+                <span id="selected-filesize" class="text-slate-400">(45 KB)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Opciones de Procesamiento -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Usuario Remitente</label>
+              <input type="text" id="upload-user-id" value="admin" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-sm focus:outline-none focus:border-indigo-500 font-mono" required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Motor de Análisis</label>
+              <select id="upload-processing-type" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-sm focus:outline-none focus:border-indigo-500">
+                <option value="OCR_FULL">OCR Completo & Extracción de Texto</option>
+                <option value="METADATA_EXTRACT">Clasificación de Entidades & Metadatos</option>
+                <option value="SHA256_INTEGRITY">Validación Criptográfica SHA-256</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Prioridad</label>
+              <select id="upload-priority" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-sm focus:outline-none focus:border-indigo-500">
+                <option value="HIGH">Alta (High Priority)</option>
+                <option value="NORMAL" selected>Normal</option>
+                <option value="LOW">Baja</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Progress Bar (hidden by default) -->
+          <div id="upload-progress-container" class="hidden space-y-2">
+            <div class="flex justify-between text-xs text-slate-400">
+              <span id="upload-progress-status">Transfiriendo bytes a Amazon S3...</span>
+              <span id="upload-progress-pct" class="font-mono">0%</span>
+            </div>
+            <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+              <div id="upload-progress-bar" class="bg-indigo-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- Submit Buttons -->
+          <div class="flex flex-wrap items-center justify-between gap-4 pt-2">
+            <button type="button" onclick="createSampleDocument()" class="px-4 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-medium transition flex items-center gap-2">
+              <span>⚡</span> Crear Documento de Prueba Rápido (Sample PDF)
+            </button>
+
+            <button type="submit" id="btn-submit-upload" class="px-6 py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm shadow-lg shadow-indigo-600/20 transition flex items-center gap-2">
+              <span>🚀</span> Subir a Amazon S3 y Procesar
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- TAB 2: HISTORIAL Y COLA WORKER EN VIVO -->
+    <section id="tab-history" class="hidden space-y-6">
+      <div class="glass-panel rounded-2xl p-6 sm:p-8 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-white flex items-center gap-2">
+              <span>📋</span> Monitor de Procesamiento Asíncrono en Tiempo Real
+            </h2>
+            <p class="text-sm text-slate-400 mt-1">
+              Inspecciona los documentos encolados y observa cómo el Worker en EC2 extrae métricas y emite alertas SNS.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <label class="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+              <input type="checkbox" id="auto-refresh-toggle" checked onchange="toggleAutoRefresh(this)" class="rounded bg-slate-900 border-slate-700 text-indigo-600 focus:ring-indigo-500">
+              Auto-refresh (3s)
+            </label>
+            <button onclick="fetchDocuments()" class="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-xs font-medium transition flex items-center gap-1.5">
+              <span>🔄</span> Actualizar Ahora
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabla de Documentos -->
+        <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+              <tr>
+                <th class="py-3 px-4">Estado</th>
+                <th class="py-3 px-4">Documento</th>
+                <th class="py-3 px-4">Usuario</th>
+                <th class="py-3 px-4">Páginas / OCR</th>
+                <th class="py-3 px-4">Hash SHA-256</th>
+                <th class="py-3 px-4">Fecha Subida</th>
+                <th class="py-3 px-4">Alerta SNS</th>
+                <th class="py-3 px-4 text-right">Detalle</th>
+              </tr>
+            </thead>
+            <tbody id="documents-table-body" class="divide-y divide-slate-800/60 font-mono">
+              <tr>
+                <td colspan="8" class="py-8 text-center text-slate-500 font-sans">
+                  Consultando documentos al backend...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: USUARIOS Y AUTENTICACIÓN (RDS MYSQL) -->
+    <section id="tab-users" class="hidden space-y-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Tarjeta de Registro -->
+        <div class="glass-panel rounded-2xl p-6 space-y-5">
+          <div>
+            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+              <span>👤</span> Registro de Usuario (RDS MySQL)
+            </h2>
+            <p class="text-xs text-slate-400 mt-1">Persistencia transaccional directa en la base de datos relacional MySQL 8.0.</p>
+          </div>
+
+          <form id="register-user-form" onsubmit="handleRegisterUser(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Nombre de Usuario</label>
+              <input type="text" id="reg-username" value="admin" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-sm focus:outline-none focus:border-indigo-500 font-mono" required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Correo Electrónico</label>
+              <input type="email" id="reg-email" value="azgomez2015@gmail.com" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-sm focus:outline-none focus:border-indigo-500 font-mono" required>
+            </div>
+            <div>
+              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1">Rol en Plataforma</label>
+              <select id="reg-role" class="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-800 text-white text-sm focus:outline-none focus:border-indigo-500">
+                <option value="admin" selected>Administrador (Full Access)</option>
+                <option value="analyst">Analista de Documentos</option>
+                <option value="user">Usuario Final</option>
+              </select>
+            </div>
+
+            <button type="submit" id="btn-submit-register" class="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs transition shadow-lg shadow-indigo-600/20">
+              Registrar Usuario en MySQL &rarr;
+            </button>
+          </form>
+        </div>
+
+        <!-- Tabla de Usuarios Registrados -->
+        <div class="glass-panel rounded-2xl p-6 lg:col-span-2 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <span>📑</span> Catálogo de Usuarios en Amazon RDS
+            </h3>
+            <button onclick="fetchUsers()" class="px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 text-xs font-medium">
+              Refrescar
+            </button>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-900/80 text-slate-400 uppercase tracking-wider text-[10px] border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-4">Usuario</th>
+                  <th class="py-2.5 px-4">Correo Electrónico</th>
+                  <th class="py-2.5 px-4">Rol</th>
+                  <th class="py-2.5 px-4">ID de Registro</th>
+                  <th class="py-2.5 px-4 text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body" class="divide-y divide-slate-800/60 font-mono">
+                <tr>
+                  <td colspan="5" class="py-6 text-center text-slate-500 font-sans">Cargando usuarios...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: INFRAESTRUCTURA Y DIAGNÓSTICO -->
+    <section id="tab-infra" class="hidden space-y-6">
+      <div class="glass-panel rounded-2xl p-6 sm:p-8 space-y-6">
+        <div>
+          <h2 class="text-xl font-bold text-white flex items-center gap-2">
+            <span>☁️</span> Topología Activa & Diagnóstico de Infraestructura
+          </h2>
+          <p class="text-sm text-slate-400 mt-1">
+            Componentes desplegados en AWS Academy Sandbox para DocuProcess Cloud.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <!-- Backend ALB Card -->
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Application Load Balancer (ALB)
+              </span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">Port 80</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">Punto de entrada de capa 7 hacia el Auto Scaling Group en subredes privadas:</p>
+            <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-emerald-400 break-all select-all text-[11px]" id="infra-alb-endpoint">
+              http://docuprocess-prod-alb-1838023630.us-east-1.elb.amazonaws.com
+            </div>
+          </div>
+
+          <!-- CloudFront CDN Card -->
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-400"></span> Amazon CloudFront (CDN)
+              </span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 font-mono">HTTPS TLS 1.3</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">Aceleración perimetral global con Origin Access Control (OAC):</p>
+            <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-purple-400 break-all select-all text-[11px]">
+              https://d3o6scalqhu3e2.cloudfront.net
+            </div>
+          </div>
+
+          <!-- Amazon RDS Card -->
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-blue-400"></span> Amazon RDS MySQL 8.0
+              </span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 font-mono">Single-AZ</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">Persistencia transaccional de usuarios y registro primario de documentos:</p>
+            <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-blue-300 break-all select-all text-[11px]">
+              docuprocess-prod-mysql.cvk8ymo0066k.us-east-1.rds.amazonaws.com:3306
+            </div>
+          </div>
+
+          <!-- Amazon SNS Card -->
+          <div class="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-white flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-400"></span> Amazon Simple Notification Service (SNS)
+              </span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 font-mono">Email Alerting</span>
+            </div>
+            <p class="text-slate-400 text-[11px]">Tópico de alertas de procesamiento y métricas CloudWatch:</p>
+            <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-rose-300 break-all select-all text-[11px]">
+              azgomez2015@gmail.com (arn:aws:sns:us-east-1:637423204827:docuprocess-alerts)
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal de Comprobación -->
+        <div class="space-y-3 pt-2">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
+              Consola de Comprobación /health en Vivo
+            </h3>
+            <button onclick="checkHealth()" class="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold transition">
+              Ejecutar /health
+            </button>
+          </div>
+          <pre id="health-output-console" class="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-emerald-400 overflow-x-auto">
+// Presiona "Ejecutar /health" para inspeccionar la respuesta en vivo del ALB...
+          </pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Detalle Documento (JSON) -->
+  <div id="detail-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="glass-panel max-w-2xl w-full rounded-2xl p-6 border-slate-800 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🔍</span> Metadatos del Documento (DynamoDB & RDS)
+        </h3>
+        <button onclick="closeModal()" class="w-8 h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white flex items-center justify-center text-sm font-bold">
+          ✕
+        </button>
+      </div>
+      <pre id="modal-json-content" class="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-indigo-300 max-h-96 overflow-y-auto">
+      </pre>
+      <div class="flex justify-end">
+        <button onclick="closeModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl border text-xs font-medium flex items-center gap-3 transition-all duration-300">
+    <span id="toast-icon">ℹ️</span>
+    <span id="toast-message">Notificación</span>
+  </div>
+
+  <!-- Application Logic JavaScript -->
+  <script>
+    // Configuración de Endpoints
+    // Si la página está servida en CloudFront, utiliza el reverse proxy relativo /api/v1 o el ALB directo
+    const ALB_DIRECT_URL = "http://docuprocess-prod-alb-1838023630.us-east-1.elb.amazonaws.com";
+    const API_BASE = window.location.protocol === "https:" ? ALB_DIRECT_URL : ALB_DIRECT_URL;
+
+    // Estado Global de la App
+    let currentUser = {
+      username: "admin",
+      email: "azgomez2015@gmail.com",
+      role: "admin"
+    };
+    let autoRefreshInterval = null;
+    let selectedFile = null;
+
+    // Inicialización al cargar la ventana
+    window.addEventListener("DOMContentLoaded", () => {
+      // Cargar usuario guardado en localStorage si existe
+      const savedUser = localStorage.getItem("docuprocess_user");
+      if (savedUser) {
+        try { currentUser = JSON.parse(savedUser); } catch(e){}
+      }
+      updateUserUI();
+      checkHealth();
+      fetchDocuments();
+      fetchUsers();
+      startAutoRefresh();
+      setupDragAndDrop();
+    });
+
+    // Gestión de Pestañas (Tabs)
+    function switchTab(tabId) {
+      const tabs = ["upload", "history", "users", "infra"];
+      tabs.forEach(t => {
+        const el = document.getElementById("tab-" + t);
+        const btn = document.getElementById("tab-btn-" + t);
+        if (t === tabId) {
+          el.classList.remove("hidden");
+          btn.className = "px-4 py-2 rounded-lg font-semibold text-white bg-indigo-600 shadow-md shadow-indigo-600/20 transition flex items-center gap-2 whitespace-nowrap";
+        } else {
+          el.classList.add("hidden");
+          btn.className = "px-4 py-2 rounded-lg font-semibold text-slate-400 hover:text-white hover:bg-slate-900 transition flex items-center gap-2 whitespace-nowrap";
+        }
+      });
+      if (tabId === "history") fetchDocuments();
+      if (tabId === "users") fetchUsers();
+    }
+
+    // Actualizar UI del usuario activo
+    function updateUserUI() {
+      document.getElementById("user-name-display").childNodes[0].nodeValue = currentUser.username + " ";
+      document.getElementById("user-email-display").innerText = currentUser.email;
+      document.getElementById("user-role-badge").innerText = (currentUser.role || "user").toUpperCase();
+      document.getElementById("user-avatar").innerText = currentUser.username.charAt(0).toUpperCase();
+      document.getElementById("upload-user-id").value = currentUser.username;
+    }
+
+    // Toast de notificación
+    function showToast(message, type = "info") {
+      const toast = document.getElementById("toast");
+      const msg = document.getElementById("toast-message");
+      const icon = document.getElementById("toast-icon");
+
+      msg.innerText = message;
+      toast.className = "fixed bottom-6 right-6 z-50 px-4 py-3 rounded-xl shadow-2xl border text-xs font-medium flex items-center gap-3 transition-all duration-300 ";
+
+      if (type === "success") {
+        toast.className += "bg-emerald-950/90 border-emerald-700 text-emerald-200";
+        icon.innerText = "✅";
+      } else if (type === "error") {
+        toast.className += "bg-rose-950/90 border-rose-700 text-rose-200";
+        icon.innerText = "⚠️";
+      } else {
+        toast.className += "bg-indigo-950/90 border-indigo-700 text-indigo-200";
+        icon.innerText = "ℹ️";
+      }
+
+      toast.classList.remove("hidden");
+      setTimeout(() => { toast.classList.add("hidden"); }, 4000);
+    }
+
+    // Health Check en vivo
+    async function checkHealth() {
+      const statusDot = document.getElementById("api-status-dot");
+      const statusText = document.getElementById("api-status-text");
+      const consoleOut = document.getElementById("health-output-console");
+
+      try {
+        const start = performance.now();
+        const res = await fetch(`${ALB_DIRECT_URL}/health`, { method: "GET" });
+        const latency = Math.round(performance.now() - start);
+
+        if (res.ok) {
+          const data = await res.json();
+          statusDot.className = "w-2 h-2 rounded-full bg-emerald-400";
+          statusText.className = "text-emerald-400";
+          statusText.innerText = `API Online (${latency}ms)`;
+          if (consoleOut) {
+            consoleOut.innerText = JSON.stringify(data, null, 2);
+          }
+        } else {
+          throw new Error("HTTP " + res.status);
+        }
+      } catch (err) {
+        statusDot.className = "w-2 h-2 rounded-full bg-rose-500";
+        statusText.className = "text-rose-400";
+        statusText.innerText = "API Offline / CORS";
+        if (consoleOut) {
+          consoleOut.innerText = `// Error al conectar con el Application Load Balancer:\n${err.message}\nVerifique que el navegador permita solicitudes HTTP al ALB.`;
+        }
+      }
+    }
+
+    // Drag and Drop para Archivos
+    function setupDragAndDrop() {
+      const dropZone = document.getElementById("drop-zone");
+      const fileInput = document.getElementById("file-input");
+
+      dropZone.addEventListener("click", () => fileInput.click());
+
+      ["dragenter", "dragover"].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          dropZone.classList.add("border-indigo-500", "bg-slate-900/90");
+        }, false);
+      });
+
+      ["dragleave", "drop"].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+          e.preventDefault();
+          dropZone.classList.remove("border-indigo-500", "bg-slate-900/90");
+        }, false);
+      });
+
+      dropZone.addEventListener("drop", (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length) {
+          handleFile(files[0]);
+        }
+      });
+    }
+
+    function handleFileSelect(e) {
+      if (e.target.files.length) {
+        handleFile(e.target.files[0]);
+      }
+    }
+
+    function handleFile(file) {
+      selectedFile = file;
+      document.getElementById("selected-file-info").classList.remove("hidden");
+      document.getElementById("selected-filename").innerText = file.name;
+      document.getElementById("selected-filesize").innerText = `(${(file.size / 1024).toFixed(1)} KB)`;
+      showToast(`Archivo seleccionado: ${file.name}`, "info");
+    }
+
+    // Envío de Carga de Documentos (Upload to S3 + DynamoDB + MySQL)
+    async function handleUpload(e) {
+      e.preventDefault();
+      const btn = document.getElementById("btn-submit-upload");
+      const progressContainer = document.getElementById("upload-progress-container");
+      const progressBar = document.getElementById("upload-progress-bar");
+      const progressStatus = document.getElementById("upload-progress-status");
+      const progressPct = document.getElementById("upload-progress-pct");
+
+      const userId = document.getElementById("upload-user-id").value.trim() || currentUser.username;
+      const processingType = document.getElementById("upload-processing-type").value;
+      const priority = document.getElementById("upload-priority").value;
+      const filename = selectedFile ? selectedFile.name : `documento_${Date.now()}.pdf`;
+
+      btn.disabled = true;
+      btn.innerText = "Subiendo...";
+      progressContainer.classList.remove("hidden");
+
+      // Simular progreso de subida a S3
+      progressBar.style.width = "40%";
+      progressPct.innerText = "40%";
+      progressStatus.innerText = "Transfiriendo objeto a bucket Amazon S3...";
+
+      let fileB64 = "";
+      if (selectedFile) {
+        try {
+          fileB64 = await toBase64(selectedFile);
+        } catch(err){}
+      }
+
+      progressBar.style.width = "75%";
+      progressPct.innerText = "75%";
+      progressStatus.innerText = "Encolando en DynamoDB & RDS MySQL...";
+
+      try {
+        const payload = {
+          user_id: userId,
+          filename: filename,
+          file_content: fileB64,
+          processing_type: processingType,
+          priority: priority
+        };
+
+        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/documents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        progressBar.style.width = "100%";
+        progressPct.innerText = "100%";
+        progressStatus.innerText = "¡Encolado exitosamente!";
+
+        showToast(`Documento ${filename} encolado para procesamiento en Worker EC2`, "success");
+
+        setTimeout(() => {
+          progressContainer.classList.add("hidden");
+          progressBar.style.width = "0%";
+          btn.disabled = false;
+          btn.innerHTML = "<span>🚀</span> Subir a Amazon S3 y Procesar";
+          switchTab("history");
+        }, 800);
+
+      } catch (err) {
+        progressContainer.classList.add("hidden");
+        btn.disabled = false;
+        btn.innerHTML = "<span>🚀</span> Subir a Amazon S3 y Procesar";
+        showToast("Error al subir documento: " + err.message, "error");
+      }
+    }
+
+    // Helper: Crear muestra rápida de documento
+    async function createSampleDocument() {
+      const sampleNames = ["reporte_financiero_q4.pdf", "contrato_servicios_cloud.pdf", "politica_seguridad_iso27001.pdf", "balance_general_noviembre.pdf"];
+      const randomName = sampleNames[Math.floor(Math.random() * sampleNames.length)];
+
+      const fakeFile = new File(["CONTENIDO DUMMY PDF DOCUPROCESS SAAS"], randomName, { type: "application/pdf" });
+      handleFile(fakeFile);
+    }
+
+    // Obtener Historial de Documentos (GET /api/v1/documents)
+    async function fetchDocuments() {
+      try {
+        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/documents`, { method: "GET" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        const docs = data.documents || [];
+
+        renderDocuments(docs);
+        updateKPIs(docs);
+      } catch (err) {
+        console.warn("fetchDocuments error:", err);
+      }
+    }
+
+    // Renderizar Filas de Documentos
+    function renderDocuments(docs) {
+      const tbody = document.getElementById("documents-table-body");
+      if (!docs.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="py-8 text-center text-slate-500 font-sans">No hay documentos encolados aún. ¡Sube uno para comenzar!</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = docs.map(d => {
+        let statusBadge = "";
+        if (d.status === "QUEUED") {
+          statusBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px]"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> QUEUED</span>`;
+        } else if (d.status === "PROCESSING") {
+          statusBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] animate-pulse"><span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-ping"></span> PROCESSING</span>`;
+        } else if (d.status === "COMPLETED") {
+          statusBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-semibold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> COMPLETED</span>`;
+        } else {
+          statusBadge = `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 text-[10px]">${d.status}</span>`;
+        }
+
+        const shortId = d.id ? d.id.substring(0, 8) + "..." : "N/A";
+        const shortHash = d.sha256_hash ? d.sha256_hash.substring(0, 10) + "..." : "Calculando...";
+        const ocrInfo = d.ocr_status === "SUCCESS" ? `<span class="text-emerald-400">${d.pages_count || 5} págs (OCR OK)</span>` : `<span class="text-slate-500">Pendiente</span>`;
+        const snsAlert = d.notification_sent ? `<span class="text-rose-400 font-semibold flex items-center gap-1"><span>✉️</span> Enviada</span>` : `<span class="text-slate-500">En espera</span>`;
+
+        return `
+          <tr class="hover:bg-slate-900/50 transition">
+            <td class="py-3 px-4">${statusBadge}</td>
+            <td class="py-3 px-4 text-white font-medium flex items-center gap-2">
+              <span>📄</span>
+              <span class="truncate max-w-[160px]" title="${d.filename}">${d.filename}</span>
+            </td>
+            <td class="py-3 px-4 text-indigo-300">${d.user_id || "admin"}</td>
+            <td class="py-3 px-4">${ocrInfo}</td>
+            <td class="py-3 px-4 text-slate-400 font-mono text-[11px]" title="${d.sha256_hash}">${shortHash}</td>
+            <td class="py-3 px-4 text-slate-400 text-[11px]">${d.created_at || "Reciente"}</td>
+            <td class="py-3 px-4 text-[11px]">${snsAlert}</td>
+            <td class="py-3 px-4 text-right">
+              <button onclick='viewDetails(${JSON.stringify(d).replace(/'/g, "&apos;")})' class="px-2 py-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white text-[10px] transition">
+                JSON &rarr;
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    // Actualizar Contadores de Tarjetas KPI
+    function updateKPIs(docs) {
+      document.getElementById("kpi-total").innerText = docs.length;
+      document.getElementById("kpi-queued").innerText = docs.filter(d => d.status === "QUEUED").length;
+      document.getElementById("kpi-processing").innerText = docs.filter(d => d.status === "PROCESSING").length;
+      document.getElementById("kpi-completed").innerText = docs.filter(d => d.status === "COMPLETED").length;
+    }
+
+    // Modal de Detalle
+    function viewDetails(doc) {
+      const modal = document.getElementById("detail-modal");
+      const content = document.getElementById("modal-json-content");
+      content.innerText = JSON.stringify(doc, null, 2);
+      modal.classList.remove("hidden");
+    }
+
+    function closeModal() {
+      document.getElementById("detail-modal").classList.add("hidden");
+    }
+
+    // Gestión de Usuarios: Registro en MySQL (POST /api/v1/auth/register)
+    async function handleRegisterUser(e) {
+      e.preventDefault();
+      const username = document.getElementById("reg-username").value.trim();
+      const email = document.getElementById("reg-email").value.trim();
+      const role = document.getElementById("reg-role").value;
+      const btn = document.getElementById("btn-submit-register");
+
+      btn.disabled = true;
+      btn.innerText = "Registrando en MySQL...";
+
+      try {
+        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, email, role })
+        });
+
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        // Actualizar usuario activo
+        currentUser = { username, email, role };
+        localStorage.setItem("docuprocess_user", JSON.stringify(currentUser));
+        updateUserUI();
+
+        showToast(`Usuario ${username} (${role}) guardado en Amazon RDS MySQL`, "success");
+        fetchUsers();
+      } catch (err) {
+        showToast("Error al registrar usuario: " + err.message, "error");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Registrar Usuario en MySQL →";
+      }
+    }
+
+    // Listar Usuarios desde RDS (GET /api/v1/users)
+    async function fetchUsers() {
+      try {
+        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/users`, { method: "GET" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        const users = data.users || [];
+
+        document.getElementById("kpi-users").innerText = users.length;
+        const tbody = document.getElementById("users-table-body");
+
+        if (!users.length) {
+          tbody.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-500 font-sans">No hay usuarios registrados.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = users.map(u => `
+          <tr class="hover:bg-slate-900/50">
+            <td class="py-2.5 px-4 text-white font-bold">${u.username}</td>
+            <td class="py-2.5 px-4 text-indigo-300">${u.email}</td>
+            <td class="py-2.5 px-4">
+              <span class="px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${u.role === 'admin' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-400'}">${u.role || 'user'}</span>
+            </td>
+            <td class="py-2.5 px-4 text-slate-500 text-[10px] font-mono">${(u.id || '').substring(0, 12)}...</td>
+            <td class="py-2.5 px-4 text-right">
+              <button onclick='switchUser(${JSON.stringify(u)})' class="px-2 py-1 rounded bg-slate-800 hover:bg-indigo-600 text-slate-300 hover:text-white text-[10px] transition">
+                Usar Sesión
+              </button>
+            </td>
+          </tr>
+        `).join("");
+      } catch (err) {
+        console.warn("fetchUsers error:", err);
+      }
+    }
+
+    function switchUser(u) {
+      currentUser = { username: u.username, email: u.email, role: u.role || "user" };
+      localStorage.setItem("docuprocess_user", JSON.stringify(currentUser));
+      updateUserUI();
+      showToast(`Sesión cambiada a: ${u.username}`, "info");
+    }
+
+    // Polling Automático
+    function startAutoRefresh() {
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      autoRefreshInterval = setInterval(() => {
+        fetchDocuments();
+      }, 3000);
+    }
+
+    function toggleAutoRefresh(cb) {
+      if (cb.checked) {
+        startAutoRefresh();
+        showToast("Auto-refresh activado (cada 3 segundos)", "info");
+      } else {
+        if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+        showToast("Auto-refresh pausado", "info");
+      }
+    }
+
+    // Helper: File to Base64
+    function toBase64(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => {
+          let encoded = reader.result.toString().replace(/^data:(.*,)?/, '');
+          resolve(encoded);
+        };
+        reader.onerror = error => reject(error);
+      });
+    }
+  </script>
+</body>
+</html>
