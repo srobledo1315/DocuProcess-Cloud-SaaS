@@ -168,7 +168,7 @@ resource "aws_launch_template" "backend" {
   }
 
   user_data = base64gzip(<<-EOF
-    #!/bin/bash
+#!/bin/bash
     set -euo pipefail
     exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/null) 2>&1
 
@@ -183,7 +183,7 @@ resource "aws_launch_template" "backend" {
     cd /opt/docuprocess
 
     # Archivo de configuración de variables de entorno del sistema
-    cat << 'ENVFILE' > /opt/docuprocess/.env
+    cat << 'ENVFILE' | sed 's/^    //' > /opt/docuprocess/.env
     AWS_DEFAULT_REGION=${var.aws_region}
     DOCUMENTS_BUCKET=${aws_s3_bucket.documents.id}
     DYNAMODB_TABLE=${aws_dynamodb_table.metadata.name}
@@ -194,10 +194,10 @@ resource "aws_launch_template" "backend" {
     DB_USER=${var.db_username}
     DB_PASSWORD=${var.db_password}
     ALERT_EMAIL=${var.alert_email}
-    ENVFILE
+ENVFILE
 
     echo "=== [2/5] GENERANDO CODIGO BACKEND REST API ==="
-    cat << 'PYEOF' > /opt/docuprocess/app.py
+    cat << 'PYEOF' | sed 's/^    //' > /opt/docuprocess/app.py
     import os
     import json
     import uuid
@@ -283,6 +283,23 @@ resource "aws_launch_template" "backend" {
         sns_client = boto3.client("sns", region_name=REGION)
     except Exception as e:
         print(f"Boto3 init warning: {e}")
+
+    @app.route("/", methods=["GET"])
+    def root():
+        return jsonify({
+            "service": "DocuProcess Cloud - Backend API",
+            "version": "2.0.0",
+            "status": "online",
+            "architecture": "AWS Academy Sandbox - Clean Architecture",
+            "endpoints": {
+                "health": "/health",
+                "register": "/api/v1/auth/register",
+                "login": "/api/v1/auth/login",
+                "documents": "/api/v1/documents",
+                "users": "/api/v1/users"
+            },
+            "frontend_portal": "https://${aws_cloudfront_distribution.frontend.domain_name}"
+        }), 200
 
     @app.route("/health", methods=["GET"])
     def health():
@@ -502,10 +519,10 @@ resource "aws_launch_template" "backend" {
 
     if __name__ == "__main__":
         app.run(host="0.0.0.0", port=80)
-    PYEOF
+PYEOF
 
     echo "=== [3/5] GENERANDO CODIGO WORKER DE PROCESAMIENTO ASINCRONO ==="
-    cat << 'PYEOF' > /opt/docuprocess/worker.py
+    cat << 'PYEOF' | sed 's/^    //' > /opt/docuprocess/worker.py
     import os
     import time
     import hashlib
@@ -636,10 +653,10 @@ Notificación despachada automáticamente vía Amazon SNS."""
             print(f"[Worker Error] {loop_err}")
 
         time.sleep(3)
-    PYEOF
+PYEOF
 
     echo "=== [4/5] CONFIGURANDO SERVICIOS SYSTEMD ==="
-    cat << 'SVCEOF' > /etc/systemd/system/docuprocess-api.service
+    cat << 'SVCEOF' | sed 's/^    //' > /etc/systemd/system/docuprocess-api.service
     [Unit]
     Description=DocuProcess REST API Service
     After=network.target
@@ -653,9 +670,9 @@ Notificación despachada automáticamente vía Amazon SNS."""
 
     [Install]
     WantedBy=multi-user.target
-    SVCEOF
+SVCEOF
 
-    cat << 'SVCEOF' > /etc/systemd/system/docuprocess-worker.service
+    cat << 'SVCEOF' | sed 's/^    //' > /etc/systemd/system/docuprocess-worker.service
     [Unit]
     Description=DocuProcess Async Processing Worker
     After=network.target
@@ -669,7 +686,7 @@ Notificación despachada automáticamente vía Amazon SNS."""
 
     [Install]
     WantedBy=multi-user.target
-    SVCEOF
+SVCEOF
 
     echo "=== [5/5] INICIANDO SERVICIOS ==="
     systemctl daemon-reload
