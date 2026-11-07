@@ -388,7 +388,7 @@
             </div>
             <p class="text-slate-400 text-[11px]">Punto de entrada de capa 7 hacia el Auto Scaling Group en subredes privadas:</p>
             <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-emerald-400 break-all select-all text-[11px]" id="infra-alb-endpoint">
-              http://docuprocess-prod-alb-1838023630.us-east-1.elb.amazonaws.com
+              http://docuprocess-prod-alb-1167436762.us-east-1.elb.amazonaws.com
             </div>
           </div>
 
@@ -402,7 +402,7 @@
             </div>
             <p class="text-slate-400 text-[11px]">Aceleración perimetral global con Origin Access Control (OAC):</p>
             <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-purple-400 break-all select-all text-[11px]">
-              https://d3o6scalqhu3e2.cloudfront.net
+              https://d3a530hemgpbl0.cloudfront.net
             </div>
           </div>
 
@@ -484,7 +484,7 @@
   <script>
     // Configuración de Endpoints
     // Solución de Mixed Content: Si se sirve bajo HTTPS (CloudFront), usa el proxy relativo '' hacia /api/* y /health
-    const ALB_DIRECT_URL = "http://docuprocess-prod-alb-1838023630.us-east-1.elb.amazonaws.com";
+    const ALB_DIRECT_URL = "http://docuprocess-prod-alb-1167436762.us-east-1.elb.amazonaws.com";
     let API_BASE = (window.location.protocol === "https:" || window.location.hostname.includes("cloudfront.net"))
       ? ""
       : ALB_DIRECT_URL;
