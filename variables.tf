@@ -76,3 +76,10 @@ variable "alert_email" {
   default     = "azgomez2015@gmail.com"
 }
 
+variable "ssm_instance_profile_name" {
+  type        = string
+  description = "Nombre exacto del Instance Profile de SSM preexistente en AWS Academy Sandbox"
+  default     = "c223221a5637310l18222431t1w637423204827-SsmRoleInstanceProfile-6UvgLqJocUml"
+}
+
+
