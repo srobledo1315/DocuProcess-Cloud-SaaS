@@ -154,16 +154,12 @@ El despliegue se encuentra 100% automatizado y orquestado mediante la plantilla 
 
 ### Paso 1: Clonar / Navegar al Repositorio
 ```bash
-cd /home/DocuProcess-Cloud-SaaS
+cd DocuProcess-Cloud-SaaS
 ```
 
 ### Paso 2: Inicialización de Providers en Terraform
 ```bash
 terraform init
-```
-*(Si opera en un entorno offline con caché local de plugins):*
-```bash
-terraform init -plugin-dir=/home/proyectos/cloud-iac/agrocloud-monitor-aws/.terraform/providers
 ```
 
 ### Paso 3: Validación Sintáctica y Estructural
@@ -188,9 +184,13 @@ Al finalizar la ejecución, Terraform imprimirá los *Outputs* operativos:
 terraform output
 ```
 
-Puede verificar el estado de salud de la API REST ejecutando una petición HTTP al ALB:
+Puede verificar el estado de salud de la API REST ejecutando una petición HTTP al ALB o HTTPS a CloudFront:
 ```bash
+# Vía DNS directo del ALB:
 curl -i $(terraform output -raw backend_alb_dns)/health
+
+# Vía CDN global de CloudFront (HTTPS):
+curl -i $(terraform output -raw frontend_cdn_domain)/health
 ```
 Respuesta esperada:
 ```json
@@ -202,25 +202,33 @@ Content-Type: application/json
 
 ---
 
-## 6. Demostración del Flujo Integral de la Plataforma
+## 7. Demostración del Flujo Integral de la Plataforma
 
-### 1. Registro de Usuario en Base de Datos Relacional (RDS MySQL)
+### 1. Acceso a la Interfaz Web (Frontend SPA)
+Abra en cualquier navegador web la URL emitida por CloudFront:
+```bash
+echo $(terraform output -raw frontend_cdn_domain)
+```
+La interfaz Single Page Application (SPA) en Dark Glassmorphism permite registrar usuarios, cambiar de sesión activa (`admin`), subir archivos arrastrando con drag & drop y monitorear el procesamiento asíncrono con sondeo automático cada 3 segundos.
+
+### 2. Registro de Usuario en Base de Datos Relacional (RDS MySQL)
 ```bash
 curl -X POST $(terraform output -raw backend_alb_dns)/api/v1/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"username": "icesi_student", "email": "student@icesi.edu.co"}'
+  -d '{"username": "admin", "email": "azgomez2015@gmail.com"}'
 ```
+*Respuesta:* `{"message": "User registered successfully", "user_id": 1, "username": "admin"}`.
 
-### 2. Encolado de Documento para Procesamiento Asíncrono
+### 3. Encolado de Documento para Procesamiento Asíncrono
 ```bash
 curl -X POST $(terraform output -raw backend_alb_dns)/api/v1/documents \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "icesi_student", "filename": "arquitectura_cloud.pdf"}'
+  -d '{"user_id": "admin", "filename": "politica_seguridad_iso27001.pdf"}'
 ```
 *Respuesta:* `{"document_id": "c7a8b9...", "status": "QUEUED"}`.
 
-### 3. Ejecución del Worker y Verificación en DynamoDB
-El demonio `worker.py` en ejecución dentro de las instancias EC2 detecta el estado `QUEUED`, realiza la extracción de metadatos, actualiza el registro en DynamoDB a `COMPLETED` y despacha el correo de confirmación mediante Amazon SNS.
+### 4. Ejecución del Worker y Verificación en DynamoDB
+El demonio `worker.py` en ejecución dentro de las instancias EC2 detecta el estado `QUEUED`, realiza la extracción de metadatos (hash SHA-256, tamaño, páginas, timestamps), actualiza el registro en DynamoDB a `COMPLETED` y despacha el correo de confirmación mediante Amazon SNS hacia `azgomez2015@gmail.com`.
 
 Consulte el estado actualizado:
 ```bash
@@ -229,22 +237,27 @@ curl $(terraform output -raw backend_alb_dns)/api/v1/documents/<document_id>
 
 ---
 
-## 7. Guía de Solución de Problemas (Troubleshooting) en AWS Academy Sandbox
+## 8. Guía de Solución de Problemas (Troubleshooting) en AWS Academy Sandbox
 
-El entorno de AWS Academy Vocareum impone políticas de control de servicios (SCP) altamente restrictivas. La siguiente tabla detalla las causas raíz y resoluciones implementadas en el código:
+El entorno de AWS Academy Vocareum impone políticas de control de servicios (SCP) y restricciones de permisos altamente específicas. La siguiente tabla detalla las causas raíz y las resoluciones técnicas aplicadas en la arquitectura modular de IaC:
 
-| Error Observado en Sandbox | Causa Raíz en Vocareum | Resolución Implementada en `main.tf` |
+| Error Observado en Sandbox | Causa Raíz en Vocareum | Resolución Implementada en IaC Modular |
 | :--- | :--- | :--- |
-| `API: iam:CreateRole AccessDenied` o `iam:GetRole AccessDenied` | Los alumnos tienen denegadas todas las mutaciones y lecturas de IAM mediante SCP. | **Cero creación de IAM:** Se prescinde de `aws_iam_role` y `data "aws_iam_role"`. En el Launch Template se referencia directamente por nombre el perfil preexistente: `name = "AmazonSSMRoleForInstancesQuickSetup"`. |
-| `API: lambda:CreateFunction AccessDenied` | AWS Lambda está completamente bloqueado en el Sandbox debido a la falta de Trust Policy hacia `lambda.amazonaws.com`. | **Worker en EC2:** El procesamiento asíncrono se desacopló hacia un servicio daemon administrado por `systemd` dentro de las instancias del Auto Scaling Group. |
-| `Error: DBInstance MultiAZNotSupported` | Vocareum bloquea la creación de réplicas en standby para evitar sobrecostos. | La directiva `multi_az = false` está forzada en el recurso `aws_db_instance.mysql`. |
-| `Error deleting RDS: InvalidParameterValue (final snapshot)` | Al ejecutar `terraform destroy`, RDS intenta generar un snapshot final, lo cual falla por cuotas/permisos de IAM. | Se incluye `skip_final_snapshot = true` y `deletion_protection = false` en `aws_db_instance.mysql`. |
-| `Error: VcpuLimitExceeded` o `InstanceLimitExceeded` | Límite máximo de 9 instancias concurrentes en la cuenta de Sandbox. | El Auto Scaling Group está acotado estrictamente a `min_size = 2`, `desired_capacity = 2` y `max_size = 4` con instancias `t3.micro`. |
-| `Connection timed out on port 22` | El puerto SSH 22 está bloqueado por el Security Group por diseño de arquitectura. | Se utiliza **AWS Systems Manager Session Manager** mediante el comando `aws ssm start-session --target <instance_id>`, garantizando acceso terminal cifrado sobre TLS sin exponer puertos. |
+| `API: iam:CreateRole AccessDenied` o `iam:GetRole AccessDenied` | Los alumnos tienen denegadas todas las mutaciones y lecturas de IAM mediante SCP. | **Cero creación de IAM:** Se prescinde de `aws_iam_role` y `data "aws_iam_role"`. En [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) se referencia directamente por nombre el perfil preexistente: `name = "AmazonSSMRoleForInstancesQuickSetup"`. |
+| `API: lambda:CreateFunction AccessDenied` | AWS Lambda está completamente bloqueado en el Sandbox debido a la falta de Trust Policy hacia `lambda.amazonaws.com`. | **Worker en EC2:** El procesamiento asíncrono se desacopló hacia un servicio daemon administrado por `systemd` dentro de las instancias del Auto Scaling Group en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf). |
+| `Error: creating EC2 Launch Template: api error InvalidUserData.Malformed: User data is limited to 16384 bytes` | El script `user_data` sin comprimir que instala dependencias (Flask, Gunicorn, PyMySQL, Boto3) superaba 14 KB, excediendo la cuota estricta de EC2 Launch Template (16 KB). | **Compresión Gzip nativa:** En [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) se utilizó `user_data = base64gzip(<<-EOF ... EOF)`, reduciendo el tamaño a ~4.9 KB sin dependencias externas. |
+| `User is not authorized to perform: ec2:RunInstances on resource: volume/* with an explicit deny in an identity-based policy` | Amazon Linux 2023 provisiona por defecto volúmenes EBS tipo `gp3`, pero Vocareum tiene una SCP que deniega explícitamente `gp3`. | **Fijación de volumen gp2:** En [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) se definió el bloque `block_device_mappings` para `/dev/xvda` forzando `volume_type = "gp2"` con 20 GB. |
+| `Error: DBInstance MultiAZNotSupported` | Vocareum bloquea la creación de réplicas en standby para evitar sobrecostos. | La directiva `multi_az = false` está forzada en el recurso `aws_db_instance.mysql` en [`database.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/database.tf). |
+| `NetworkError when attempting to fetch resource` (Frontend SPA) | Bloqueo por directiva de navegador de **Mixed Active Content**: La SPA servida por HTTPS en CloudFront intentaba consumir directamente el ALB por HTTP plano sin certificado SSL. | **CloudFront Reverse Proxy:** En [`storage_cdn.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/storage_cdn.tf) se agregó el ALB como origen secundario y se configuraron comportamientos de caché para `/api/*` y `/health` con redirección a HTTPS y soporte completo de verbos HTTP (`GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE`). |
+| `404 Not Found` en la raíz del ALB (`/`) | El backend Flask solo tenía expuestas rutas bajo `/api/v1/...` y `/health`, dejando la raíz `/` sin manejar. | Se incorporó en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) la ruta `@app.route("/")` retornando un payload descriptivo del servicio, estado y link a la SPA en CloudFront. |
+| `(1054, "Unknown column 'role' in 'field list'")` en registro | Desincronización entre el esquema inicial SQL de MySQL y el modelo de datos de la aplicación. | Se incluyó la definición explícita de `role VARCHAR(30) DEFAULT 'user'` en el script DDL de inicialización en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf). |
+| `Error deleting RDS: InvalidParameterValue (final snapshot)` | Al ejecutar `terraform destroy`, RDS intenta generar un snapshot final, lo cual falla por cuotas/permisos de IAM. | Se incluye `skip_final_snapshot = true` y `deletion_protection = false` en `aws_db_instance.mysql` en [`database.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/database.tf). |
+| `Error: VcpuLimitExceeded` o `InstanceLimitExceeded` | Límite máximo de 9 instancias concurrentes en la cuenta de Sandbox. | El Auto Scaling Group está acotado estrictamente a `min_size = 2`, `desired_capacity = 2` y `max_size = 4` con instancias `t3.micro` en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf). |
+| `Connection timed out on port 22` | El puerto SSH 22 está bloqueado por el Security Group por diseño de arquitectura de mínima exposición. | Se utiliza **AWS Systems Manager Session Manager** mediante el comando `aws ssm start-session --target <instance_id>`, garantizando acceso terminal cifrado sobre TLS sin exponer puertos. |
 
 ---
 
-## 8. Destrucción de la Infraestructura
+## 9. Destrucción de la Infraestructura
 
 Al finalizar las pruebas o la sustentación, ejecute la liberación completa de recursos para evitar agotar los créditos de la cuenta de laboratorio:
 
