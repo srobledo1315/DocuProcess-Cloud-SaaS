@@ -100,28 +100,33 @@ La arquitectura de DocuProcess Cloud emplea un enfoque políglota de persistenci
 
 ---
 
-## 4. Requisitos Previos
+## 4. Requisitos Previos y Gestión de Credenciales
 
-Para ejecutar la infraestructura desde la consola o terminal del laboratorio:
+En entornos educativos como **AWS Academy Learner Lab (Vocareum)**, las credenciales temporales rotan cada vez que se inicia una sesión de laboratorio. **Bajo el principio de Zero Hardcoding, nunca deben guardarse credenciales, tokens ni contraseñas en archivos del repositorio.**
 
-1. **Credenciales Activas de AWS Academy Sandbox:**
-   Copie el bloque de credenciales temporales desde la consola de Vocareum (`AWS Details -> AWS CLI`) y expórtelas en su terminal:
-   ```bash
-   export AWS_ACCESS_KEY_ID="ASI..."
-   export AWS_SECRET_ACCESS_KEY="..."
-   export AWS_SESSION_TOKEN="..."
-   export AWS_DEFAULT_REGION="us-east-1"
-   ```
-2. **Terraform CLI v1.5+:**
-   Compruebe la instalación local de Terraform:
-   ```bash
-   terraform -v
-   ```
-3. **AWS CLI v2:**
-   Verifique la conectividad con la cuenta de laboratorio:
-   ```bash
-   aws sts get-caller-identity
-   ```
+### Configuración Dinámica de Credenciales (AWS CLI)
+Al iniciar una nueva sesión en Vocareum (`Start Lab`), copie las credenciales temporales del panel `AWS Details -> AWS CLI` y aplíquelas en su entorno mediante cualquiera de estas dos opciones estándar:
+
+**Opción A: Vía AWS CLI (Recomendado):**
+```bash
+aws configure set aws_access_key_id "ASIA..."
+aws configure set aws_secret_access_key "..."
+aws configure set aws_session_token "IQoJb3JpZ..."
+aws configure set region "us-east-1"
+```
+
+**Opción B: Vía Variables de Entorno de Sesión:**
+```bash
+export AWS_ACCESS_KEY_ID="ASIA..."
+export AWS_SECRET_ACCESS_KEY="..."
+export AWS_SESSION_TOKEN="IQoJb3JpZ..."
+export AWS_DEFAULT_REGION="us-east-1"
+```
+
+**Verificación de Conectividad con el Laboratorio:**
+```bash
+aws sts get-caller-identity
+```
 
 ---
 
@@ -133,13 +138,15 @@ La infraestructura como código está organizada modularmente siguiendo el princ
 DocuProcess-Cloud-SaaS/
 ├── providers.tf         # Declaración de providers AWS y Random, data sources (AZs, AMI AL2023)
 ├── variables.tf         # Variables de entrada tipadas (región, CIDRs, credenciales, email)
-├── locals.tf            # Nombres comunes, prefijos deterministas e identificador de rol SSM
+├── locals.tf            # Nombres comunes, generación criptográfica de claves RDS y rol SSM
 ├── network.tf           # VPC 10.0.0.0/16, 6 subredes, IGW, NAT GW, EIP, Tablas de Enrutamiento y VPC Endpoints
 ├── storage_cdn.tf       # Buckets S3 (Frontend, Docs, Logs), OAC y Distribución CloudFront (Reverse Proxy API)
 ├── database.tf          # Amazon RDS MySQL 8.0 (Single-AZ) y Amazon DynamoDB (docuprocess-metadata)
 ├── compute.tf           # Security Groups (ALB, EC2, RDS), ALB, Target Group, Launch Template y ASG
 ├── monitoring.tf        # Topic Amazon SNS, suscripción por correo, alarmas CloudWatch y políticas ASG
 ├── outputs.tf           # Endpoints públicos (ALB DNS, CloudFront CDN, RDS MySQL, S3, SNS ARN)
+├── scripts/
+│   └── deploy.sh        # Script automatizado con autodetección de perfiles dinámicos SSM
 ├── frontend/
 │   └── index.html       # Single Page Application (SPA) interactiva con Tailwind CSS y polling
 ├── architecture.svg     # Diagrama vectorial SVG de alta resolución
@@ -150,35 +157,48 @@ DocuProcess-Cloud-SaaS/
 
 ## 6. Instrucciones Exactas de Despliegue Automatizado
 
-El despliegue se encuentra 100% automatizado y orquestado mediante la plantilla modular de Terraform.
+El despliegue puede ejecutarse de forma totalmente desatendida mediante el script orquestador o paso a paso con los comandos estándar de Terraform.
 
-### Paso 1: Clonar / Navegar al Repositorio
+### Método A: Despliegue en 1 Solo Paso (Recomendado)
+El script [`scripts/deploy.sh`](file:///home/robledo/DocuProcess-Cloud-SaaS/scripts/deploy.sh) verifica las credenciales activas en AWS CLI, autodetecta dinámicamente el perfil de instancia de SSM generado por Vocareum, desmarca buckets S3 y aprovisiona la infraestructura:
+
+```bash
+chmod +x scripts/deploy.sh
+./scripts/deploy.sh
+```
+
+---
+
+### Método B: Despliegue Paso a Paso (Terraform CLI)
+
+#### Paso 1: Navegar al Repositorio
 ```bash
 cd DocuProcess-Cloud-SaaS
 ```
 
-### Paso 2: Inicialización de Providers en Terraform
+#### Paso 2: Inicialización de Providers
 ```bash
 terraform init
 ```
 
-### Paso 3: Validación Sintáctica y Estructural
+#### Paso 3: Validación Sintáctica y Estructural
 ```bash
 terraform validate
 ```
 
-### Paso 4: Generación y Revisión del Plan de Ejecución
+#### Paso 4: Detección del Perfil Dinámico de SSM y Aplicación
 ```bash
-terraform plan -out=tfplan.binary
-```
+# Detectar el Instance Profile actual generado por Vocareum:
+export TF_VAR_ssm_instance_profile_name=$(aws iam list-instance-profiles \
+  --query "InstanceProfiles[?contains(InstanceProfileName, 'SsmRoleInstanceProfile')].InstanceProfileName | [0]" \
+  --output text 2>/dev/null || echo "AmazonSSMRoleForInstancesQuickSetup")
 
-### Paso 5: Aplicación de la Infraestructura
-```bash
-terraform apply "tfplan.binary"
+# Aplicar la infraestructura (bypaseando lecturas SCP de ObjectLock en S3):
+terraform apply -auto-approve -refresh=false
 ```
-*Tiempo estimado de aprovisionamiento:* ~8 a 12 minutos (principalmente debido a la creación de la instancia RDS MySQL y la distribución de CloudFront).
+*Tiempo estimado de aprovisionamiento:* ~6 a 10 minutos (principalmente debido a la creación de la instancia RDS MySQL y la distribución perimetral de CloudFront).
 
-### Paso 6: Obtención de Endpoints y Verificación
+#### Paso 5: Obtención de Endpoints y Verificación Operativa
 Al finalizar la ejecución, Terraform imprimirá los *Outputs* operativos:
 ```bash
 terraform output

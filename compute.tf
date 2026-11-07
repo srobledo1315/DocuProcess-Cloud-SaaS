@@ -192,7 +192,7 @@ resource "aws_launch_template" "backend" {
     DB_PORT=3306
     DB_NAME=${var.db_name}
     DB_USER=${var.db_username}
-    DB_PASSWORD=${var.db_password}
+    DB_PASSWORD=${local.db_password}
     ALERT_EMAIL=${var.alert_email}
 ENVFILE
 

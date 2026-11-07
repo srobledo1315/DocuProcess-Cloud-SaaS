@@ -65,8 +65,8 @@ variable "db_username" {
 
 variable "db_password" {
   type        = string
-  description = "Contraseña maestra para RDS MySQL (mínimo 8 caracteres)"
-  default     = "DocuProcess2026Secure!"
+  description = "Contraseña maestra para RDS MySQL (si es null, se autogenera criptográficamente con random_password)"
+  default     = null
   sensitive   = true
 }
 
@@ -78,8 +78,8 @@ variable "alert_email" {
 
 variable "ssm_instance_profile_name" {
   type        = string
-  description = "Nombre exacto del Instance Profile de SSM preexistente en AWS Academy Sandbox"
-  default     = "c223221a5637310l18222431t1w637423204827-SsmRoleInstanceProfile-6UvgLqJocUml"
+  description = "Nombre exacto del Instance Profile de SSM preexistente en AWS Academy Sandbox (autodetectable dinámicamente)"
+  default     = "AmazonSSMRoleForInstancesQuickSetup"
 }
 
 
