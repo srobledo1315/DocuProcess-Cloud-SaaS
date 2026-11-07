@@ -483,9 +483,11 @@
   <!-- Application Logic JavaScript -->
   <script>
     // Configuración de Endpoints
-    // Si la página está servida en CloudFront, utiliza el reverse proxy relativo /api/v1 o el ALB directo
+    // Solución de Mixed Content: Si se sirve bajo HTTPS (CloudFront), usa el proxy relativo '' hacia /api/* y /health
     const ALB_DIRECT_URL = "http://docuprocess-prod-alb-1838023630.us-east-1.elb.amazonaws.com";
-    const API_BASE = window.location.protocol === "https:" ? ALB_DIRECT_URL : ALB_DIRECT_URL;
+    let API_BASE = (window.location.protocol === "https:" || window.location.hostname.includes("cloudfront.net"))
+      ? ""
+      : ALB_DIRECT_URL;
 
     // Estado Global de la App
     let currentUser = {
@@ -570,7 +572,7 @@
 
       try {
         const start = performance.now();
-        const res = await fetch(`${ALB_DIRECT_URL}/health`, { method: "GET" });
+        const res = await fetch(`${API_BASE}/health`, { method: "GET" });
         const latency = Math.round(performance.now() - start);
 
         if (res.ok) {
@@ -681,7 +683,7 @@
           priority: priority
         };
 
-        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/documents`, {
+        const res = await fetch(`${API_BASE}/api/v1/documents`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
@@ -724,7 +726,7 @@
     // Obtener Historial de Documentos (GET /api/v1/documents)
     async function fetchDocuments() {
       try {
-        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/documents`, { method: "GET" });
+        const res = await fetch(`${API_BASE}/api/v1/documents`, { method: "GET" });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
         const docs = data.documents || [];
@@ -815,7 +817,7 @@
       btn.innerText = "Registrando en MySQL...";
 
       try {
-        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/auth/register`, {
+        const res = await fetch(`${API_BASE}/api/v1/auth/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ username, email, role })
@@ -842,7 +844,7 @@
     // Listar Usuarios desde RDS (GET /api/v1/users)
     async function fetchUsers() {
       try {
-        const res = await fetch(`${ALB_DIRECT_URL}/api/v1/users`, { method: "GET" });
+        const res = await fetch(`${API_BASE}/api/v1/users`, { method: "GET" });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
         const users = data.users || [];
