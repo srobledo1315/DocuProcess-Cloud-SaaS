@@ -44,7 +44,7 @@ terraform init -input=false > /dev/null
 terraform validate
 
 # 4. Detección de Sandbox Limpio (recursos eliminados por fin de sesión previa)
-echo "[4/5] Verificando estado de infraestructura previa en AWS..."
+echo "[4/6] Verificando estado de infraestructura previa en AWS..."
 STATE_VPC=$(terraform state show aws_vpc.main 2>/dev/null | grep -E '^\s*id\s*=' | awk -F'"' '{print $2}' || true)
 VPC_EXISTS="false"
 if [ -n "$STATE_VPC" ]; then
@@ -54,18 +54,35 @@ if [ -n "$STATE_VPC" ]; then
 fi
 
 if [ "$VPC_EXISTS" == "false" ]; then
-  echo "  → Sandbox limpio detectado. Ejecutando Fase 1 (refresco + creación de red, RDS, ALB y S3)..."
+  echo "  → Sandbox limpio detectado. Verificando buckets S3 obsoletos en estado local..."
+  for RES in aws_s3_bucket.frontend aws_s3_bucket.documents aws_s3_bucket.cloudtrail; do
+    BKT=$(terraform state show "$RES" 2>/dev/null | grep -E '^\s*bucket\s*=' | head -n1 | awk -F'"' '{print $2}' || true)
+    if [ -n "$BKT" ] && ! aws s3api head-bucket --bucket "$BKT" >/dev/null 2>&1; then
+      echo "    • Removiendo estado huérfano de $RES ($BKT)"
+      terraform state rm "$RES" >/dev/null 2>&1 || true
+    fi
+  done
+  echo "  → Ejecutando Fase 1 (refresco + creación de red, RDS, ALB y S3)..."
   terraform apply -auto-approve || true
 fi
 
 # Desmarcar buckets S3 tras la lectura de ObjectLockConfiguration bloqueada por SCP de Vocareum
+# (El provider hashicorp/aws v5 invoca s3:GetBucketObjectLockConfiguration en cada refresh)
 terraform untaint aws_s3_bucket.frontend 2>/dev/null || true
 terraform untaint aws_s3_bucket.documents 2>/dev/null || true
 terraform untaint aws_s3_bucket.cloudtrail 2>/dev/null || true
 
 # 5. Aprovisionamiento Final (sin refresh sobre buckets S3)
-echo "[5/5] Aplicando Fase 2 (CloudFront, Launch Template, Auto Scaling Group y políticas)..."
+echo "[5/6] Aplicando Fase 2 (CloudFront, Políticas de Recurso, Launch Template y ASG)..."
 terraform apply -auto-approve -refresh=false
+
+# 6. Invalidación automática de caché perimetral en CloudFront tras cambios en Frontend
+echo "[6/6] Sincronizando caché de Amazon CloudFront..."
+CF_ID=$(terraform state show aws_cloudfront_distribution.frontend 2>/dev/null | grep -E '^\s*id\s*=' | head -n1 | awk -F'"' '{print $2}' || true)
+if [ -n "$CF_ID" ]; then
+  aws cloudfront create-invalidation --distribution-id "$CF_ID" --paths "/index.html" "/" >/dev/null 2>&1 || true
+  echo "  ✓ Invalidación enviada a distribución CloudFront: $CF_ID"
+fi
 
 echo "=============================================================================="
 echo "    Despliegue completado con éxito. Endpoints activos:"

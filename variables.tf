@@ -82,4 +82,10 @@ variable "ssm_instance_profile_name" {
   default     = "AmazonSSMRoleForInstancesQuickSetup"
 }
 
+variable "enable_cloudtrail" {
+  type        = bool
+  description = "Habilita AWS CloudTrail (mantener en false en AWS Academy Vocareum por denegación SCP de cloudtrail:CreateTrail)"
+  default     = false
+}
+
 

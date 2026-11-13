@@ -14,6 +14,7 @@ resource "random_password" "db_password" {
 locals {
   name_prefix          = "docuprocess-${var.environment}"
   preexisting_ssm_role = var.ssm_instance_profile_name
+  ec2_iam_role_arn     = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/AmazonSSMRoleForInstancesQuickSetup"
   db_password          = coalesce(var.db_password, random_password.db_password.result)
 }
 

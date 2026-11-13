@@ -14,4 +14,8 @@ override.tf.json
 terraform.rc
 tfplan*
 *.binary
+__pycache__/
+*.pyc
+.env
+
 

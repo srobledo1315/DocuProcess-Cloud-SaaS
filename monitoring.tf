@@ -11,6 +11,53 @@ resource "aws_sns_topic" "alerts" {
   }
 }
 
+# Política basada en recurso en SNS para permitir Publicación desde el rol EC2 (Worker & API)
+resource "aws_sns_topic_policy" "alerts" {
+  arn = aws_sns_topic.alerts.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "__default_policy_ID"
+    Statement = [
+      {
+        Sid    = "AllowAccountOwnerManagement"
+        Effect = "Allow"
+        Principal = {
+          AWS = "*"
+        }
+        Action = [
+          "SNS:GetTopicAttributes",
+          "SNS:SetTopicAttributes",
+          "SNS:AddPermission",
+          "SNS:RemovePermission",
+          "SNS:DeleteTopic",
+          "SNS:Subscribe",
+          "SNS:ListSubscriptionsByTopic",
+          "SNS:Publish"
+        ]
+        Resource = aws_sns_topic.alerts.arn
+        Condition = {
+          StringEquals = {
+            "AWS:SourceOwner" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        Sid    = "AllowEC2SSMRolePublish"
+        Effect = "Allow"
+        Principal = {
+          AWS = local.ec2_iam_role_arn
+        }
+        Action = [
+          "sns:Publish",
+          "sns:GetTopicAttributes"
+        ]
+        Resource = aws_sns_topic.alerts.arn
+      }
+    ]
+  })
+}
+
 # Suscripción por correo electrónico a alertas
 resource "aws_sns_topic_subscription" "email_alerts" {
   topic_arn = aws_sns_topic.alerts.arn
@@ -114,10 +161,11 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage_low" {
 }
 
 # Auditoría Global con AWS CloudTrail
-# NOTA SANDBOX: Vocareum deniega 'cloudtrail:CreateTrail' a nivel de política de identidad.
-# Se mantiene la estructura declarativa con count = 0 para total compatibilidad.
+# NOTA SANDBOX: Vocareum deniega 'cloudtrail:CreateTrail' mediante SCP explícita a nivel de estudiante.
+# Se parametrizó con var.enable_cloudtrail (default = false en Sandbox) para mantener el código declarativo
+# listo para cuentas AWS estándar (-var="enable_cloudtrail=true") sin romper 'terraform apply' en laboratorio.
 resource "aws_cloudtrail" "main" {
-  count                         = 0
+  count                         = var.enable_cloudtrail ? 1 : 0
   name                          = "${local.name_prefix}-cloudtrail"
   s3_bucket_name                = aws_s3_bucket.cloudtrail.id
   include_global_service_events = true

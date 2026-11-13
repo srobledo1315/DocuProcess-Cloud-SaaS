@@ -114,18 +114,9 @@ resource "aws_cloudfront_distribution" "frontend" {
     max_ttl                = 86400
   }
 
-  # SPA Routing: Redirigir errores 403 y 404 a index.html
-  custom_error_response {
-    error_code         = 403
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
-
-  custom_error_response {
-    error_code         = 404
-    response_code      = 200
-    response_page_path = "/index.html"
-  }
+  # Nota de integración: No se configuran custom_error_response globales 403/404 -> 200 /index.html
+  # porque en CloudFront aplican también al comportamiento /api/*, enmascarando respuestas JSON
+  # 403 Forbidden (RBAC) y 404 Not Found de la API REST como 200 HTML. default_root_object sirve '/'.
 
   restrictions {
     geo_restriction {
@@ -209,6 +200,57 @@ resource "aws_s3_bucket_public_access_block" "documents" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# CORS en S3 para permitir subida directa de archivos desde CloudFront/ALB vía Presigned URLs
+resource "aws_s3_bucket_cors_configuration" "documents" {
+  bucket = aws_s3_bucket.documents.id
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["PUT", "GET", "HEAD"]
+    allowed_origins = [
+      "https://${aws_cloudfront_distribution.frontend.domain_name}",
+      "http://${aws_lb.api.dns_name}"
+    ]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3600
+  }
+}
+
+# Política basada en recurso para otorgar mínimo privilegio al rol EC2 (AmazonSSMRoleForInstancesQuickSetup)
+# sin modificar IAM ni perder conectividad con AWS Systems Manager Session Manager.
+resource "aws_s3_bucket_policy" "documents" {
+  bucket = aws_s3_bucket.documents.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowEC2SSMRoleBucketList"
+        Effect = "Allow"
+        Principal = {
+          AWS = local.ec2_iam_role_arn
+        }
+        Action   = "s3:ListBucket"
+        Resource = aws_s3_bucket.documents.arn
+      },
+      {
+        Sid    = "AllowEC2SSMRoleObjectRW"
+        Effect = "Allow"
+        Principal = {
+          AWS = local.ec2_iam_role_arn
+        }
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject"
+        ]
+        Resource = "${aws_s3_bucket.documents.arn}/*"
+      }
+    ]
+  })
+
+  depends_on = [aws_s3_bucket_public_access_block.documents]
 }
 
 # Bucket S3: Registros de Auditoría para AWS CloudTrail

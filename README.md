@@ -137,20 +137,21 @@ La infraestructura como código está organizada modularmente siguiendo el princ
 ```
 DocuProcess-Cloud-SaaS/
 ├── providers.tf         # Declaración de providers AWS y Random, data sources (AZs, AMI AL2023)
-├── variables.tf         # Variables de entrada tipadas (región, CIDRs, credenciales, email)
-├── locals.tf            # Nombres comunes, generación criptográfica de claves RDS y rol SSM
+├── variables.tf         # Variables de entrada tipadas (región, CIDRs, credenciales, CloudTrail flag)
+├── locals.tf            # Nombres comunes, ARN de rol SSM EC2 y generación criptográfica de clave RDS
 ├── network.tf           # VPC 10.0.0.0/16, 6 subredes, IGW, NAT GW, EIP, Tablas de Enrutamiento y VPC Endpoints
-├── storage_cdn.tf       # Buckets S3 (Frontend, Docs, Logs), OAC y Distribución CloudFront (Reverse Proxy API)
-├── database.tf          # Amazon RDS MySQL 8.0 (Single-AZ) y Amazon DynamoDB (docuprocess-metadata)
-├── compute.tf           # Security Groups (ALB, EC2, RDS), ALB, Target Group, Launch Template y ASG
-├── monitoring.tf        # Topic Amazon SNS, suscripción por correo, alarmas CloudWatch y políticas ASG
+├── storage_cdn.tf       # Buckets S3, CORS, Bucket Policies, OAC y CloudFront (Reverse Proxy /api/* y /health)
+├── database.tf          # Amazon RDS MySQL 8.0 (Single-AZ cifrado) y Amazon DynamoDB + Resource Policy
+├── compute.tf           # Security Groups, ALB, Target Group, Launch Template (usuario non-root) y ASG
+├── monitoring.tf        # Topic SNS + Resource Policy, suscripción email, alarmas CloudWatch y CloudTrail opcional
 ├── outputs.tf           # Endpoints públicos (ALB DNS, CloudFront CDN, RDS MySQL, S3, SNS ARN)
 ├── scripts/
-│   └── deploy.sh        # Script automatizado con autodetección de perfiles dinámicos SSM
+│   └── deploy.sh        # Script orquestador (limpieza S3 huérfana, untaint, -refresh=false, invalidación CDN)
 ├── frontend/
-│   └── index.html       # Single Page Application (SPA) interactiva con Tailwind CSS y polling
-├── architecture.svg     # Diagrama vectorial SVG de alta resolución
-└── README.md            # Documentación completa y manual de operación
+│   └── index.html       # SPA con Auth/RBAC, Presigned URL S3 upload, /api/v1/config y sanitización DOM
+├── docs/
+│   └── architecture.svg # Diagrama vectorial SVG de alta resolución
+└── README.md            # Documentación completa, registro de soluciones y runbook de operación
 ```
 
 ---
@@ -160,7 +161,7 @@ DocuProcess-Cloud-SaaS/
 El despliegue puede ejecutarse de forma totalmente desatendida mediante el script orquestador o paso a paso con los comandos estándar de Terraform.
 
 ### Método A: Despliegue en 1 Solo Paso (Recomendado)
-El script [`scripts/deploy.sh`](file:///home/robledo/DocuProcess-Cloud-SaaS/scripts/deploy.sh) verifica las credenciales activas en AWS CLI, autodetecta dinámicamente el perfil de instancia de SSM generado por Vocareum, desmarca buckets S3 y aprovisiona la infraestructura:
+El script [`scripts/deploy.sh`](file:///home/robledo/DocuProcess-Cloud-SaaS/scripts/deploy.sh) verifica las credenciales activas en AWS CLI, autodetecta el perfil dinámico SSM de Vocareum, limpia estados S3 huérfanos si el Sandbox se reinició, desmarca buckets S3 ante el bloqueo de `GetBucketObjectLockConfiguration`, aprovisiona la infraestructura e invalida la caché de CloudFront:
 
 ```bash
 chmod +x scripts/deploy.sh
@@ -188,36 +189,36 @@ terraform validate
 
 #### Paso 4: Detección del Perfil Dinámico de SSM y Aplicación
 ```bash
-# Detectar el Instance Profile actual generado por Vocareum:
 export TF_VAR_ssm_instance_profile_name=$(aws iam list-instance-profiles \
   --query "InstanceProfiles[?contains(InstanceProfileName, 'SsmRoleInstanceProfile')].InstanceProfileName | [0]" \
   --output text 2>/dev/null || echo "AmazonSSMRoleForInstancesQuickSetup")
 
-# Aplicar la infraestructura (bypaseando lecturas SCP de ObjectLock en S3):
+# Aplicar la infraestructura omitiendo refresco S3 ObjectLock bloqueado por SCP:
 terraform apply -auto-approve -refresh=false
 ```
-*Tiempo estimado de aprovisionamiento:* ~6 a 10 minutos (principalmente debido a la creación de la instancia RDS MySQL y la distribución perimetral de CloudFront).
 
-#### Paso 5: Obtención de Endpoints y Verificación Operativa
-Al finalizar la ejecución, Terraform imprimirá los *Outputs* operativos:
+#### Paso 5: Confirmación Manual Obligatoria de Suscripción Amazon SNS
+Al crear el tópico `docuprocess-alerts`, AWS SNS envía un correo de verificación al destinatario (`azgomez2015@gmail.com`) dejando la suscripción en estado `PendingConfirmation`. **Paso manual requerido:** abrir el correo *"AWS Notification - Subscription Confirmation"* y hacer clic en **`Confirm subscription`**. Puede comprobar el estado desde CLI:
+```bash
+aws sns list-subscriptions-by-topic --topic-arn "$(terraform output -raw sns_alerts_topic_arn)"
+```
+
+#### Paso 6: Verificación de Endpoints
 ```bash
 terraform output
+curl -i "$(terraform output -raw frontend_cdn_domain)/health"
+curl -i "$(terraform output -raw frontend_cdn_domain)/api/v1/config"
 ```
-
-Puede verificar el estado de salud de la API REST ejecutando una petición HTTP al ALB o HTTPS a CloudFront:
-```bash
-# Vía DNS directo del ALB:
-curl -i $(terraform output -raw backend_alb_dns)/health
-
-# Vía CDN global de CloudFront (HTTPS):
-curl -i $(terraform output -raw frontend_cdn_domain)/health
-```
-Respuesta esperada:
+Respuesta esperada en `/health`:
 ```json
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{"service":"DocuProcess-API","status":"healthy","timestamp":1772898720.0}
+{
+  "service": "DocuProcess-API",
+  "status": "healthy",
+  "version": "2.1.0",
+  "rds_mysql": "connected",
+  "dynamodb_table": "docuprocess-metadata",
+  "documents_bucket": "docuprocess-documents-<suffix>"
+}
 ```
 
 ---
@@ -225,63 +226,98 @@ Content-Type: application/json
 ## 7. Demostración del Flujo Integral de la Plataforma
 
 ### 1. Acceso a la Interfaz Web (Frontend SPA)
-Abra en cualquier navegador web la URL emitida por CloudFront:
-```bash
-echo $(terraform output -raw frontend_cdn_domain)
-```
-La interfaz Single Page Application (SPA) en Dark Glassmorphism permite registrar usuarios, cambiar de sesión activa (`admin`), subir archivos arrastrando con drag & drop y monitorear el procesamiento asíncrono con sondeo automático cada 3 segundos.
+Abra en cualquier navegador web la URL de CloudFront (`terraform output -raw frontend_cdn_domain`). La SPA consulta `/api/v1/config` dinámicamente (sin URLs ni ARNs hardcodeados), permite registrar e iniciar sesión con contraseña, subir archivos directamente a S3 mediante **Presigned URLs**, probar envíos válidos y corruptos (`FAILED + alerta SNS`), gestionar roles RBAC (si el usuario es `admin`) y monitorear el procesamiento cada 3 segundos.
 
-### 2. Registro de Usuario en Base de Datos Relacional (RDS MySQL)
+### 2. Registro, Autenticación y RBAC (RDS MySQL)
 ```bash
-curl -X POST $(terraform output -raw backend_alb_dns)/api/v1/auth/register \
+CF_URL=$(terraform output -raw frontend_cdn_domain)
+
+# Registro inicial (el primer admin se permite como bootstrap; los demás nacen como 'user')
+TOKEN=$(curl -s -X POST "$CF_URL/api/v1/auth/register" \
   -H "Content-Type: application/json" \
-  -d '{"username": "admin", "email": "azgomez2015@gmail.com"}'
-```
-*Respuesta:* `{"message": "User registered successfully", "user_id": 1, "username": "admin"}`.
+  -d '{"username": "admin", "email": "azgomez2015@gmail.com", "password": "<TU_PASSWORD_SEGURO>", "role": "admin"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
 
-### 3. Encolado de Documento para Procesamiento Asíncrono
+# Verificación de sesión activa
+curl -s "$CF_URL/api/v1/auth/me" -H "Authorization: Bearer $TOKEN"
+```
+
+### 3. Subida Directa a S3 (Presigned URL) y Encolado Asíncrono
 ```bash
-curl -X POST $(terraform output -raw backend_alb_dns)/api/v1/documents \
+# Paso A: Solicitar URL prefirmada S3
+PRESIGN=$(curl -s -X POST "$CF_URL/api/v1/documents/presign" \
+  -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"user_id": "admin", "filename": "politica_seguridad_iso27001.pdf"}'
+  -d '{"filename": "politica_iso27001.pdf", "file_size_bytes": 264, "content_type": "application/pdf"}')
+
+DOC_ID=$(echo "$PRESIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['document_id'])")
+S3_KEY=$(echo "$PRESIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['s3_key'])")
+PUT_URL=$(echo "$PRESIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['presigned_url'])")
+
+# Paso B: Subir bytes reales directamente a S3
+printf '%%PDF-1.4\n1 0 obj<</Type /Page>>endobj\n%%%%EOF\n' | curl -i -X PUT -H "Content-Type: application/pdf" --data-binary @- "$PUT_URL"
+
+# Paso C: Registrar en DynamoDB + RDS para procesamiento por Worker EC2
+curl -s -X POST "$CF_URL/api/v1/documents" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"document_id\":\"$DOC_ID\",\"s3_key\":\"$S3_KEY\",\"filename\":\"politica_iso27001.pdf\",\"processing_type\":\"OCR_FULL\",\"priority\":\"HIGH\"}"
 ```
-*Respuesta:* `{"document_id": "c7a8b9...", "status": "QUEUED"}`.
 
-### 4. Ejecución del Worker y Verificación en DynamoDB
-El demonio `worker.py` en ejecución dentro de las instancias EC2 detecta el estado `QUEUED`, realiza la extracción de metadatos (hash SHA-256, tamaño, páginas, timestamps), actualiza el registro en DynamoDB a `COMPLETED` y despacha el correo de confirmación mediante Amazon SNS hacia `azgomez2015@gmail.com`.
+### 4. Verificación en Worker EC2, DynamoDB y Prueba de Fallo (`FAILED`)
+El demonio `worker.py` (ejecutándose como usuario `docuprocess` sin privilegios en las instancias del ASG) reclama tareas mediante `SELECT ... FOR UPDATE SKIP LOCKED`, descarga los bytes desde S3 (`get_object`), calcula el **SHA-256 real** del binario, cuenta páginas/dimensiones, actualiza **DynamoDB** y publica la alerta por **Amazon SNS**. Para comprobar la alerta de fallo, suba un archivo con nombre o contenido `corrupt_force_fail.pdf`: pasará a estado `FAILED` en RDS/DynamoDB y enviará notificación de error por SNS.
 
-Consulte el estado actualizado:
 ```bash
-curl $(terraform output -raw backend_alb_dns)/api/v1/documents/<document_id>
+curl -s "$CF_URL/api/v1/documents/$DOC_ID" -H "Authorization: Bearer $TOKEN"
+aws s3 ls "s3://$(terraform output -raw documents_s3_bucket)" --recursive
+aws dynamodb scan --table-name docuprocess-metadata --select COUNT
 ```
 
 ---
 
-## 8. Guía de Solución de Problemas (Troubleshooting) en AWS Academy Sandbox
+## 8. Prueba de Carga para Verificación del Auto Scaling Group (Sustentación)
 
-El entorno de AWS Academy Vocareum impone políticas de control de servicios (SCP) y restricciones de permisos altamente específicas. La siguiente tabla detalla las causas raíz y las resoluciones técnicas aplicadas en la arquitectura modular de IaC:
+La alarma `docuprocess-prod-ec2-cpu-high` en [`monitoring.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/monitoring.tf) escala el ASG de `2` hasta `4` instancias cuando el promedio de `CPUUtilization` alcanza **≥ 75% durante 2 periodos de 120 segundos (4 minutos)**.
 
-| Error Observado en Sandbox | Causa Raíz en Vocareum | Resolución Implementada en IaC Modular |
-| :--- | :--- | :--- |
-| `API: iam:CreateRole AccessDenied` o `iam:GetRole AccessDenied` | Los alumnos tienen denegadas todas las mutaciones y lecturas de IAM mediante SCP. | **Cero creación de IAM:** Se prescinde de `aws_iam_role` y `data "aws_iam_role"`. En [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) se referencia directamente por nombre el perfil preexistente: `name = "AmazonSSMRoleForInstancesQuickSetup"`. |
-| `API: lambda:CreateFunction AccessDenied` | AWS Lambda está completamente bloqueado en el Sandbox debido a la falta de Trust Policy hacia `lambda.amazonaws.com`. | **Worker en EC2:** El procesamiento asíncrono se desacopló hacia un servicio daemon administrado por `systemd` dentro de las instancias del Auto Scaling Group en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf). |
-| `Error: creating EC2 Launch Template: api error InvalidUserData.Malformed: User data is limited to 16384 bytes` | El script `user_data` sin comprimir que instala dependencias (Flask, Gunicorn, PyMySQL, Boto3) superaba 14 KB, excediendo la cuota estricta de EC2 Launch Template (16 KB). | **Compresión Gzip nativa:** En [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) se utilizó `user_data = base64gzip(<<-EOF ... EOF)`, reduciendo el tamaño a ~4.9 KB sin dependencias externas. |
-| `User is not authorized to perform: ec2:RunInstances on resource: volume/* with an explicit deny in an identity-based policy` | Amazon Linux 2023 provisiona por defecto volúmenes EBS tipo `gp3`, pero Vocareum tiene una SCP que deniega explícitamente `gp3`. | **Fijación de volumen gp2:** En [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) se definió el bloque `block_device_mappings` para `/dev/xvda` forzando `volume_type = "gp2"` con 20 GB. |
-| `Error: DBInstance MultiAZNotSupported` | Vocareum bloquea la creación de réplicas en standby para evitar sobrecostos. | La directiva `multi_az = false` está forzada en el recurso `aws_db_instance.mysql` en [`database.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/database.tf). |
-| `NetworkError when attempting to fetch resource` (Frontend SPA) | Bloqueo por directiva de navegador de **Mixed Active Content**: La SPA servida por HTTPS en CloudFront intentaba consumir directamente el ALB por HTTP plano sin certificado SSL. | **CloudFront Reverse Proxy:** En [`storage_cdn.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/storage_cdn.tf) se agregó el ALB como origen secundario y se configuraron comportamientos de caché para `/api/*` y `/health` con redirección a HTTPS y soporte completo de verbos HTTP (`GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE`). |
-| `404 Not Found` en la raíz del ALB (`/`) | El backend Flask solo tenía expuestas rutas bajo `/api/v1/...` y `/health`, dejando la raíz `/` sin manejar. | Se incorporó en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf) la ruta `@app.route("/")` retornando un payload descriptivo del servicio, estado y link a la SPA en CloudFront. |
-| `(1054, "Unknown column 'role' in 'field list'")` en registro | Desincronización entre el esquema inicial SQL de MySQL y el modelo de datos de la aplicación. | Se incluyó la definición explícita de `role VARCHAR(30) DEFAULT 'user'` en el script DDL de inicialización en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf). |
-| `Error deleting RDS: InvalidParameterValue (final snapshot)` | Al ejecutar `terraform destroy`, RDS intenta generar un snapshot final, lo cual falla por cuotas/permisos de IAM. | Se incluye `skip_final_snapshot = true` y `deletion_protection = false` en `aws_db_instance.mysql` en [`database.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/database.tf). |
-| `Error: VcpuLimitExceeded` o `InstanceLimitExceeded` | Límite máximo de 9 instancias concurrentes en la cuenta de Sandbox. | El Auto Scaling Group está acotado estrictamente a `min_size = 2`, `desired_capacity = 2` y `max_size = 4` con instancias `t3.micro` en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf). |
-| `Connection timed out on port 22` | El puerto SSH 22 está bloqueado por el Security Group por diseño de arquitectura de mínima exposición. | Se utiliza **AWS Systems Manager Session Manager** mediante el comando `aws ssm start-session --target <instance_id>`, garantizando acceso terminal cifrado sobre TLS sin exponer puertos. |
+1. **Generación de tráfico HTTP concurrente hacia el ALB / CloudFront** (desde terminal local, o carga de CPU directa controlada vía SSM sobre los nodos):
+   ```bash
+   ALB_URL=$(terraform output -raw backend_alb_dns)
+   # Tráfico HTTP paralelo sostenido durante ~5 minutos contra /health y /api/v1/config
+   for i in $(seq 1 25); do
+     (while true; do curl -s "$ALB_URL/health" >/dev/null; curl -s "$ALB_URL/api/v1/config" >/dev/null; done) &
+   done
+   ```
+   *(Alternativa determinista si la red local limita el throughput hacia ALB: ejecutar carga CPU controlada por SSM sobre las instancias del ASG durante 300 segundos y observar la transición de la alarma).*
+2. **Monitoreo en tiempo real del disparo de alarma y escalamiento:**
+   ```bash
+   watch -n 15 'aws cloudwatch describe-alarms --alarm-names docuprocess-prod-ec2-cpu-high --query "MetricAlarms[0].[StateValue,StateReason]" --output table && aws autoscaling describe-auto-scaling-groups --query "AutoScalingGroups[0].[DesiredCapacity,Instances[*].[InstanceId,LifecycleState,HealthStatus]]" --output json'
+   ```
+3. **Detener la carga tras verificar `DesiredCapacity = 3` (o `4`)** (`pkill -f "$ALB_URL"`), permitiendo que `docuprocess-prod-ec2-cpu-low` (≤ 25%) retorne el ASG a `2` instancias.
 
 ---
 
-## 9. Destrucción de la Infraestructura
+## 9. Registro de Problemas de Ejecución y Soluciones Aplicadas
+
+Durante la auditoría técnica e integración sobre **AWS Academy Sandbox (Vocareum)** se identificaron y mitigaron sistemáticamente los siguientes fallos críticos de infraestructura, seguridad y lógica de aplicación:
+
+| Categoría | Problema / Vulnerabilidad Original | Causa Raíz Técnica | Solución Aplicada en el Proyecto |
+| :--- | :--- | :--- | :--- |
+| **IAM / Sandbox (Crítico)** | `AccessDenied` desde EC2 hacia S3, DynamoDB y SNS al usar el perfil de laboratorio. | El rol `AmazonSSMRoleForInstancesQuickSetup` solo incluye `AmazonSSMManagedInstanceCore` (+ Parameter Store); las mutaciones IAM (`iam:CreateRole`, `AttachRolePolicy`) están bloqueadas por SCP, y cambiar a `EMR_EC2_DefaultRole` habría deshabilitado SSM Session Manager. | Se preservó el perfil SSM en EC2 y se implementaron **Políticas Basadas en Recursos (Resource-Based Policies)** con mínimo privilegio en [`storage_cdn.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/storage_cdn.tf) (`aws_s3_bucket_policy.documents`), [`database.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/database.tf) (`aws_dynamodb_resource_policy.metadata`) y [`monitoring.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/monitoring.tf) (`aws_sns_topic_policy.alerts`). |
+| **CloudTrail / SNS (Alto)** | `aws_cloudtrail.main` fallaba en Vocareum y SNS quedaba en `PendingConfirmation`. | Vocareum impone deny explícito sobre `cloudtrail:CreateTrail`; las suscripciones SNS por email exigen confirmación activa del destinatario. | CloudTrail se parametrizó mediante `var.enable_cloudtrail` (`default = false` en Sandbox, `true` en cuentas AWS estándar) en [`monitoring.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/monitoring.tf) y [`variables.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/variables.tf), documentando el paso manual de confirmación en SNS. |
+| **Cifrado & S3 SCP (Medio)** | RDS MySQL sin cifrado en reposo (`StorageEncrypted = False`) y error `403 GetBucketObjectLockConfiguration` en `terraform apply`. | `storage_encrypted` omitido en RDS; el provider `hashicorp/aws` v5 consulta `ObjectLockConfiguration` en cada refresh de S3, bloqueado por SCP de Vocareum. | Se habilitó `storage_encrypted = true` en [`database.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/database.tf) y se automatizó en [`scripts/deploy.sh`](file:///home/robledo/DocuProcess-Cloud-SaaS/scripts/deploy.sh) la limpieza de buckets huérfanos, `terraform untaint` y `-refresh=false` más invalidación CDN. |
+| **CloudFront vs RBAC (Alto)** | CloudFront convertía respuestas `403 Forbidden` y `404` de `/api/*` en `200 OK` (`index.html`). | Los bloques globales `custom_error_response` (403/404 -> `/index.html`) en CloudFront se aplican a todos los orígenes, incluido el ALB en `/api/*`. | Se eliminaron los `custom_error_response` globales en [`storage_cdn.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/storage_cdn.tf) manteniendo `default_root_object = "index.html"`, preservando códigos HTTP reales de la API REST. |
+| **Falsos Positivos (Crítico)** | La API respondía `202 Accepted` y el Worker marcaba `COMPLETED` y `notification_sent = 1` aunque S3, DynamoDB y SNS fallaran. | Bloques `try...except: pass` silenciosos y ausencia de `PYTHONUNBUFFERED=1` en `systemd` (logs retenidos en buffer). | Manejo estricto de errores con códigos HTTP `400`/`500` reales en `app.py`, validación `head_object` en S3, `notification_sent = 1` condicionado al éxito de `sns_client.publish`, y `PYTHONUNBUFFERED=1` en [`compute.tf`](file:///home/robledo/DocuProcess-Cloud-SaaS/compute.tf). |
+| **Simulación en Worker (Crítico)** | `worker.py` no leía S3: calculaba SHA-256 sobre un string temporal con `time.sleep(2)` y páginas aleatorias. | Faltaba integración real con `s3_client.get_object` y manejo de errores/estado `FAILED`. | El Worker descarga los bytes reales desde S3, calcula el SHA-256 binario real, inspecciona cabeceras/páginas (PDF, PNG, JPG, DOCX, TXT) y ante corrupción/fallo marca `FAILED` en RDS/DynamoDB enviando alerta descriptiva por SNS. |
+| **Auth, RBAC y Concurrencia (Alto)** | `/api/v1/auth/login` auto-creaba usuarios sin contraseña, tokens sin validar y condición de carrera entre Workers del ASG. | Sin `password_hash`, sin tabla `sessions`, sin decoradores RBAC ni bloqueo SQL entre instancias EC2. | Hashing PBKDF2-SHA256, tabla persistente `sessions` en RDS compartida por el ASG, decorador `@require_auth(roles=...)`, asignación de roles (`PATCH /api/v1/users/<id>/role`) y reclamo atómico de tareas con `SELECT ... FOR UPDATE SKIP LOCKED`. |
+| **Seguridad & Repo (Medio)** | Servicios corriendo como `root`, subida Base64 pesada, XSS potencial por `innerHTML`, URLs hardcodeadas en HTML y archivos duplicados/`.pyc`. | `User=root` en `systemd`, payloads JSON en Base64, interpolación HTML directa y configuraciones estáticas. | Usuario de sistema `docuprocess` sin privilegios (`AmbientCapabilities=CAP_NET_BIND_SERVICE`), subida directa a S3 vía **Presigned PUT URLs** + S3 CORS, consumo dinámico desde `/api/v1/config`, renderizado DOM seguro con `textContent`, y limpieza de repo (`docs/architecture.svg` único y `.gitignore`). |
+
+---
+
+## 10. Destrucción de la Infraestructura
 
 Al finalizar las pruebas o la sustentación, ejecute la liberación completa de recursos para evitar agotar los créditos de la cuenta de laboratorio:
 
 ```bash
-terraform destroy -auto-approve
+terraform destroy -auto-approve -refresh=false
 ```
 

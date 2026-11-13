@@ -27,9 +27,10 @@ resource "aws_db_instance" "mysql" {
   db_subnet_group_name   = aws_db_subnet_group.rds.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  # REGLAS INQUEBRANTABLES DE AWS ACADEMY SANDBOX
+  # REGLAS INQUEBRANTABLES DE AWS ACADEMY SANDBOX + CIFRADO EN REPOSO
   multi_az            = false
   publicly_accessible = false
+  storage_encrypted   = true
   skip_final_snapshot = true
   deletion_protection = false
   apply_immediately   = true
@@ -79,6 +80,36 @@ resource "aws_dynamodb_table" "metadata" {
   tags = {
     Name = "${local.name_prefix}-dynamodb-metadata"
   }
+}
+
+# Política basada en recurso en DynamoDB para permitir operaciones CRUD/Query al rol EC2
+# dentro de AWS Academy Sandbox sin mutar políticas IAM bloqueadas por SCP.
+resource "aws_dynamodb_resource_policy" "metadata" {
+  resource_arn = aws_dynamodb_table.metadata.arn
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "AllowEC2SSMRoleMetadataAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = local.ec2_iam_role_arn
+        }
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:GetItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = [
+          aws_dynamodb_table.metadata.arn,
+          "${aws_dynamodb_table.metadata.arn}/index/*"
+        ]
+      }
+    ]
+  })
 }
 
 ### ==============================================================================
