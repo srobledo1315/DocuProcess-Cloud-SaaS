@@ -29,56 +29,57 @@ La arquitectura implementa separación de preocupaciones (*Clean Architecture*) 
 
 ```mermaid
 graph TD
-    User["Usuario Externo / Navegador Web / Cliente API\n(IP Pública Cliente)"]
+    User["Usuario / Navegador Web (SPA)\nAuth Bearer RBAC + Anti-XSS DOM textContent\nConfig dinámica (/api/v1/config)"]
 
-    subgraph CDN_Layer["Capa de Aceleración y Frontend (Edge)"]
-        CF["Amazon CloudFront Distribution\n(CDN Global + SSL Term)"]
-        S3_Front["Amazon S3 Bucket\n(Alojamiento Estático SPA)"]
-        CF -->|Origin Access Control OAC| S3_Front
+    subgraph CDN_Layer["Capa de Aceleración, Reverse Proxy y Frontend (Edge)"]
+        CF["Amazon CloudFront Distribution\n(CDN Global + Terminación HTTPS)\n- default_root_object: index.html\n- Reverse Proxy: /api/* & /health -> ALB\n- Sin override global 403/404"]
+        S3_Front["Amazon S3 Bucket: Frontend\n(Alojamiento Estático Privado SPA)"]
+        CF -->|Origin Access Control OAC SigV4| S3_Front
     end
 
     subgraph AWS_Cloud["Región AWS us-east-1 (Sandbox Vocareum)"]
         subgraph VPC["Virtual Private Cloud (10.0.0.0/16)"]
-            subgraph Public_Tier["Tier Público (2 Zonas de Disponibilidad)"]
+            subgraph Public_Tier["Tier Público (10.0.10.0/24 & 10.0.11.0/24)"]
                 IGW["Internet Gateway"]
-                ALB["Application Load Balancer\n(Internet-Facing, Port 80)"]
+                ALB["Application Load Balancer\n(HTTP :80 | Healthcheck GET /health)"]
                 NAT["NAT Gateway (Subred Pública 1)\n+ Elastic IP"]
             end
 
             subgraph Private_Compute["Tier Privado de Cómputo (10.0.1.0/24 & 10.0.2.0/24)"]
-                ASG["Auto Scaling Group\n(EC2 t3.micro | Min: 2, Max: 4)"]
-                EC2_Node["Instancias EC2 con IAM: AmazonSSMRoleForInstancesQuickSetup\n- Gunicorn + Flask (API REST :80)\n- Worker Daemon (worker.py)"]
+                ASG["Auto Scaling Group\n(EC2 t3.micro | Min: 2, Max: 4 | EBS gp2 20GB)"]
+                EC2_Node["Instancias EC2 (Role: AmazonSSMRoleForInstancesQuickSetup)\n- Servicio systemd non-root: User=docuprocess (CAP_NET_BIND_SERVICE)\n- Gunicorn + Flask :80 (PYTHONUNBUFFERED=1, Auth PBKDF2, RBAC, Presign S3v4)\n- Worker Daemon (S3 get_object real, SHA-256, SKIP LOCKED, estado FAILED)"]
                 ASG --- EC2_Node
             end
 
             subgraph Private_DB["Tier Privado de Persistencia (10.0.20.0/24 & 10.0.21.0/24)"]
-                RDS["Amazon RDS MySQL 8.0\n(Single-AZ | db.t3.micro | gp2 20GB)\nPuerto 3306"]
+                RDS["Amazon RDS MySQL 8.0\n(Single-AZ | db.t3.micro | gp2 20GB | TCP 3306)\n- Cifrado en reposo: storage_encrypted = true\n- Tablas: users, sessions, documents (FOR UPDATE SKIP LOCKED)"]
             end
 
-            VPC_Endpoints["VPC Gateway Endpoints\n(S3 & DynamoDB - Tráfico Interno Gratuito)"]
+            VPC_Endpoints["VPC Gateway Endpoints\n(S3 & DynamoDB - Tráfico Privado Interno)"]
         end
 
-        subgraph Managed_Services["Servicios PaaS / Serverless de AWS"]
-            S3_Docs["Amazon S3 Bucket: Documentos\n(AES-256 SSE, Versioning)"]
-            DDB["Amazon DynamoDB: docuprocess-metadata\n(Pay-Per-Request, GSI: UserDocumentsIndex)"]
-            SNS["Amazon SNS: docuprocess-alerts\n(Email Subscription)"]
-            CT["AWS CloudTrail\n+ S3 Bucket de Auditoría"]
-            CW["Amazon CloudWatch\n(Alarmas de CPU EC2, CPU RDS y Almacenamiento)"]
+        subgraph Managed_Services["Servicios PaaS / Serverless & Resource Policies"]
+            S3_Docs["Amazon S3 Bucket: Documentos\n(AES-256 SSE, Versioning, CORS + Bucket Policy EC2 RW)"]
+            DDB["Amazon DynamoDB: docuprocess-metadata\n(Pay-Per-Request | QUEUED/PROCESSING/COMPLETED/FAILED\n+ Resource Policy EC2)"]
+            SNS["Amazon SNS: docuprocess-alerts\n(Email: azgomez2015@gmail.com | COMPLETED & FAILED\n+ Topic Policy EC2 Publish)"]
+            CT["AWS CloudTrail (Opcional: enable_cloudtrail = false por SCP Vocareum)\n+ S3 Bucket de Auditoría"]
+            CW["Amazon CloudWatch\n(ASG Scale-Out CPU >= 75% +1 / Scale-In <= 25% -1\n+ Alarmas RDS CPU >= 80% / Storage <= 5GB)"]
         end
     end
 
     %% Flujos de Tráfico
-    User -->|Flujo 1: Carga Web HTTPS| CF
-    User -->|Flujo 2: Peticiones API REST| ALB
-    ALB -->|HTTP Port 80 - Security Group Restringido| EC2_Node
-    EC2_Node -->|TCP 3306 - SG Privado| RDS
-    EC2_Node -.->|Gateway Endpoint| S3_Docs
-    EC2_Node -.->|Gateway Endpoint| DDB
-    EC2_Node -->|Via NAT Gateway| SNS
-    EC2_Node -.->|Audit Events| CT
+    User -->|Flujo 1: HTTPS SPA + /api/* & /health| CF
+    CF -->|Reverse Proxy HTTP :80 /api/* & /health| ALB
+    User -.->|Flujo 2: Upload Directo Presigned PUT HTTPS s3v4| S3_Docs
+    ALB -->|HTTP Port 80 - SG Restringido| EC2_Node
+    EC2_Node -->|TCP 3306 - FOR UPDATE SKIP LOCKED| RDS
+    EC2_Node -.->|Gateway Endpoint + Bucket Policy| S3_Docs
+    EC2_Node -.->|Gateway Endpoint + Resource Policy| DDB
+    EC2_Node -->|Via NAT Gateway + Topic Policy| SNS
+    EC2_Node -.->|Eventos si enable_cloudtrail = true| CT
     ASG -.->|Métricas| CW
-    CW -->|Acción de Alarma / Notificación| SNS
-    CW -->|Acción de Escalado| ASG
+    CW -->|Alarma SNS| SNS
+    CW -->|Scale-Out / Scale-In| ASG
 ```
 </details>
 
