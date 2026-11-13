@@ -6,10 +6,10 @@ Infraestructura como Código (IaC) en Amazon Web Services (AWS) mediante HashiCo
 
 ## 1. Descripción General del Caso de Estudio
 
-**DocuProcess Cloud** es una plataforma SaaS (*Software as a Service*) orientada al segmento empresarial (*B2B/Enterprise*), diseñada para la ingesta, almacenamiento, extracción de metadatos (OCR, conteo de páginas, hash criptográfico) y análisis asíncrono de documentos e imágenes de gran volumen.
+**DocuProcess Cloud** es una plataforma SaaS (*Software as a Service*) orientada al segmento empresarial (*B2B/Enterprise*), diseñada para la ingesta, almacenamiento, extracción de metadatos (validación de cabeceras binarias, conteo de páginas/líneas/dimensiones, hash criptográfico SHA-256) y procesamiento asíncrono de documentos e imágenes.
 
 ### Requerimientos Funcionales y de Negocio
-- **Portal Web de Usuario (Frontend Estático):** Aplicación de una sola página (*SPA - Single Page Application*) para registro, autenticación, subida de documentos y visualización en tiempo real del historial de procesamiento.
+- **Portal Web de Usuario (Frontend Estático):** Aplicación de una sola página (*SPA - Single Page Application*) para registro, autenticación, subida directa de documentos vía Presigned URLs y visualización en tiempo real (*polling* cada 3 s) del historial de procesamiento.
 - **API REST de Gestión (Backend Compute):** Servicio web transaccional para autenticación, gestión de sesiones de usuario y endpoints para la ingesta y consulta de estado.
 - **Módulo Worker de Procesamiento Asíncrono:** Proceso desacoplado en segundo plano (*Background Daemon*) que inspecciona las colas de trabajo, analiza los archivos persistidos en S3, extrae métricas y actualiza el almacén NoSQL.
 - **Módulo de Notificaciones y Alertas:** Notificación automática hacia los clientes y administradores mediante Amazon SNS (correo electrónico) tras la finalización exitosa o falla en la ingesta.
@@ -91,13 +91,13 @@ La arquitectura de DocuProcess Cloud emplea un enfoque políglota de persistenci
 
 | Dimensión Técnica | Amazon RDS (MySQL 8.0) | Amazon DynamoDB (NoSQL) |
 | :--- | :--- | :--- |
-| **Dominio y Caso de Uso** | **Cuentas de Usuario, Autenticación y Billing** | **Metadatos de Documentos, Historial y Logs de OCR** |
-| **Modelo de Consistencia** | **ACID Estricto** (Atomicidad, Consistencia, Aislamiento serializable, Durabilidad). | **Eventual / Fuertemente Consistente** seleccionable por operación. |
-| **Estructura del Esquema** | **Esquema Rígido y Normalizado (3FN):** Claves foráneas, tablas de roles, credenciales e integridad referencial. | **Sin Esquema (Schema-less / Flexible):** Metadatos variables por tipo de archivo (PDF, PNG, TIFF) con atributos heterogéneos. |
-| **Complejidad de Consulta** | **Uniones Relacionales (SQL JOINs):** Comprobación de membresía, relaciones usuario-organización y transacciones financieras. | **Búsqueda por Clave Primaria (Key-Value):** Lecturas ultra-rápidas mediante `document_id` y consultas cronológicas indexadas. |
+| **Dominio y Caso de Uso** | **Cuentas de Usuario, Sesiones RBAC y Cola Transaccional (`users`, `sessions`, `documents`)** | **Metadatos de Documentos e Historial (`docuprocess-metadata`)** |
+| **Modelo de Consistencia** | **ACID Estricto** (Atomicidad, Consistencia, Aislamiento y Durabilidad) con bloqueo `FOR UPDATE SKIP LOCKED`. | **Eventual / Fuertemente Consistente** seleccionable por operación. |
+| **Estructura del Esquema** | **Esquema Rígido y Normalizado:** Claves foráneas (`sessions.user_id → users.id`), roles (`admin`, `analyst`, `user`), `password_hash` PBKDF2 y estado de cola. | **Sin Esquema (Schema-less / Flexible):** Metadatos variables según extensión (`.pdf`, `.png`, `.jpg`, `.docx`, `.doc`, `.txt`) con atributos dinámicos. |
+| **Complejidad de Consulta** | **Uniones Relacionales (`SQL JOIN`):** Validación conjunta `sessions JOIN users` para tokens Bearer y asignación atómica de tareas entre Workers del ASG. | **Búsqueda por Clave Primaria (`document_id`) e Índice Secundario (`UserDocumentsIndex`):** Consultas directas por documento o usuario ordenadas por `created_at`. |
 | **Complejidad Computacional** | Búsquedas indexadas por B-Tree con complejidad de tiempo: $$\mathcal{O}(\log N)$$ | Búsqueda por tabla Hash en la partición: $$\mathcal{O}(1)$$ |
-| **Escalabilidad y Capacidad** | Escalado vertical de cómputo (con clase `db.t3.micro` en Sandbox); Single-AZ por directiva. | **Escalabilidad Horizontal Infinita:** Modelo `PAY_PER_REQUEST` (On-Demand) que absorbe ráfagas sin provisionar capacidad. |
-| **Razón de Selección en DocuProcess** | Garantiza que no existan inconsistencias ni duplicidad en el registro de usuarios o asignación de privilegios. | Permite almacenar millones de registros de procesamiento con atributos dinámicos (OCR text, dimensiones, hash SHA-256) sin migraciones DDL. |
+| **Escalabilidad y Capacidad** | Escalado vertical de cómputo (clase `db.t3.micro`, `storage_encrypted = true` en Sandbox); Single-AZ por directiva. | **Escalabilidad Horizontal Infinita:** Modelo `PAY_PER_REQUEST` (On-Demand) que absorbe ráfagas sin provisionar capacidad. |
+| **Razón de Selección en DocuProcess** | Garantiza integridad referencial en autenticación/RBAC y evita condiciones de carrera entre instancias EC2 del ASG al reclamar tareas. | Permite almacenar registros de procesamiento con resúmenes heterogéneos (`pdf_version`, `dimensions`, `sha256_hash`, `sns_message_id`) sin migraciones DDL. |
 
 ---
 
@@ -143,7 +143,7 @@ DocuProcess-Cloud-SaaS/
 ├── network.tf           # VPC 10.0.0.0/16, 6 subredes, IGW, NAT GW, EIP, Tablas de Enrutamiento y VPC Endpoints
 ├── storage_cdn.tf       # Buckets S3, CORS, Bucket Policies, OAC y CloudFront (Reverse Proxy /api/* y /health)
 ├── database.tf          # Amazon RDS MySQL 8.0 (Single-AZ cifrado) y Amazon DynamoDB + Resource Policy
-├── compute.tf           # Security Groups, ALB, Target Group, Launch Template (usuario non-root) y ASG
+├── compute.tf           # Security Groups, ALB, Target Group, Launch Template (non-root docuprocess, app.py + worker.py) y ASG
 ├── monitoring.tf        # Topic SNS + Resource Policy, suscripción email, alarmas CloudWatch y CloudTrail opcional
 ├── outputs.tf           # Endpoints públicos (ALB DNS, CloudFront CDN, RDS MySQL, S3, SNS ARN)
 ├── scripts/
@@ -190,9 +190,11 @@ terraform validate
 
 #### Paso 4: Detección del Perfil Dinámico de SSM y Aplicación
 ```bash
-export TF_VAR_ssm_instance_profile_name=$(aws iam list-instance-profiles \
+DETECTED_PROFILE=$(aws iam list-instance-profiles \
   --query "InstanceProfiles[?contains(InstanceProfileName, 'SsmRoleInstanceProfile')].InstanceProfileName | [0]" \
-  --output text 2>/dev/null || echo "AmazonSSMRoleForInstancesQuickSetup")
+  --output text 2>/dev/null || true)
+[ -z "$DETECTED_PROFILE" ] || [ "$DETECTED_PROFILE" = "None" ] && DETECTED_PROFILE="AmazonSSMRoleForInstancesQuickSetup"
+export TF_VAR_ssm_instance_profile_name="$DETECTED_PROFILE"
 
 # Aplicar la infraestructura omitiendo refresco S3 ObjectLock bloqueado por SCP:
 terraform apply -auto-approve -refresh=false
@@ -213,9 +215,11 @@ curl -i "$(terraform output -raw frontend_cdn_domain)/api/v1/config"
 Respuesta esperada en `/health`:
 ```json
 {
-  "service": "DocuProcess-API",
   "status": "healthy",
+  "service": "DocuProcess-API",
   "version": "2.1.0",
+  "instance_id": "i-0123456789abcdef0",
+  "timestamp": 1700000000.0,
   "rds_mysql": "connected",
   "dynamodb_table": "docuprocess-metadata",
   "documents_bucket": "docuprocess-documents-<suffix>"
@@ -233,7 +237,7 @@ Abra en cualquier navegador web la URL de CloudFront (`terraform output -raw fro
 ```bash
 CF_URL=$(terraform output -raw frontend_cdn_domain)
 
-# Registro inicial (el primer admin se permite como bootstrap; los demás nacen como 'user')
+# Registro inicial (el primer admin se permite como bootstrap; después, solicitar roles elevados sin token admin devuelve 403 y los registros estándar nacen como 'user')
 TOKEN=$(curl -s -X POST "$CF_URL/api/v1/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"username": "admin", "email": "azgomez2015@gmail.com", "password": "<TU_PASSWORD_SEGURO>", "role": "admin"}' \
@@ -249,7 +253,7 @@ curl -s "$CF_URL/api/v1/auth/me" -H "Authorization: Bearer $TOKEN"
 PRESIGN=$(curl -s -X POST "$CF_URL/api/v1/documents/presign" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"filename": "politica_iso27001.pdf", "file_size_bytes": 264, "content_type": "application/pdf"}')
+  -d '{"filename": "politica_iso27001.pdf", "file_size_bytes": 44, "content_type": "application/pdf"}')
 
 DOC_ID=$(echo "$PRESIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['document_id'])")
 S3_KEY=$(echo "$PRESIGN" | python3 -c "import sys,json; print(json.load(sys.stdin)['s3_key'])")
@@ -266,7 +270,7 @@ curl -s -X POST "$CF_URL/api/v1/documents" \
 ```
 
 ### 4. Verificación en Worker EC2, DynamoDB y Prueba de Fallo (`FAILED`)
-El demonio `worker.py` (ejecutándose como usuario `docuprocess` sin privilegios en las instancias del ASG) reclama tareas mediante `SELECT ... FOR UPDATE SKIP LOCKED`, descarga los bytes desde S3 (`get_object`), calcula el **SHA-256 real** del binario, cuenta páginas/dimensiones, actualiza **DynamoDB** y publica la alerta por **Amazon SNS**. Para comprobar la alerta de fallo, suba un archivo con nombre o contenido `corrupt_force_fail.pdf`: pasará a estado `FAILED` en RDS/DynamoDB y enviará notificación de error por SNS.
+El demonio `worker.py` (ejecutándose como usuario `docuprocess` sin privilegios en las instancias del ASG) reclama tareas mediante `SELECT ... FOR UPDATE SKIP LOCKED`, descarga los bytes desde S3 (`get_object`), calcula el **SHA-256 real** del binario, cuenta páginas/dimensiones, actualiza **DynamoDB** y publica la alerta por **Amazon SNS**. Para comprobar la alerta de fallo, suba un archivo cuyo nombre contenga `force_fail` (ej. `corrupt_force_fail.pdf` o el botón *Sample Corrupt* en el portal), cuyo contenido inicie con `DOCUPROCESS_FORCE_FAIL`, o con una cabecera binaria inválida: pasará a estado `FAILED` en RDS/DynamoDB y enviará notificación de error por SNS.
 
 ```bash
 curl -s "$CF_URL/api/v1/documents/$DOC_ID" -H "Authorization: Bearer $TOKEN"
